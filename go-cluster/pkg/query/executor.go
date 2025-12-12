@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"github.com/lumadb/cluster/pkg/core"
 )
 
 // Result represents the output of a query
@@ -92,13 +94,41 @@ func (e *Executor) executeAggregation(ctx context.Context, plan *Plan) (*Result,
 	}
 
 	// 2. Gather & Merge
-	// We need to merge results with same Group Key.
-	// Map[GroupKey] -> PartialAgg
+	// We merge using the same Rust logic (e.g. sum of sums)
+	// For MVP, we extract the "values" from returned documents and aggregate them.
+	// Assumption: Shards return Documents containing the aggregation value for a single group in MVP,
+	// OR they return raw docs if we are doing global aggregation.
+	// Let's assume global aggregation (e.g. SUM(price)) for MVP simplicity.
 
-	// Simply concat all docs for now if no real merge logic
-	// Real impl: Look at plan.Query.Select.Fields to determine Aggregation Func
+	// Flatten result values
+	var values []interface{}
+	for _, doc := range results.Documents {
+		// Extract value. For MVP we assume document itself is the value or contains it.
+		// If doc is map, we need the field.
+		// Given we don't have the field name here easily without parsing plan.Query,
+		// we'll assume the document is a loose value or we take the first field.
+		// BETTER: executePointLookup style, but for now we just collect.
+		values = append(values, doc)
+	}
 
-	return results, nil
+	// Use Rust FFI to aggregate the partial results
+	// Note: For SUM, Sum(P1, P2) works. For AVG, we need Count+Sum.
+	// MVP: Supports SUM/MIN/MAX. AVG is approximate if not weighted.
+	// Real implementation would handle partial aggregates state.
+
+	// Determine Op from Plan (MVP hardcode or pass via Plan)
+	op := "SUM"
+	// TODO: plumb op through Plan
+
+	finalVal, err := core.ExecuteAggregate(values, op)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Result{
+		Count:     1,
+		Documents: []interface{}{map[string]interface{}{"result": finalVal}},
+	}, nil
 }
 
 func (e *Executor) executeJoin(ctx context.Context, plan *Plan) (*Result, error) {
@@ -106,66 +136,46 @@ func (e *Executor) executeJoin(ctx context.Context, plan *Plan) (*Result, error)
 		return nil, fmt.Errorf("join requires at least two subplans")
 	}
 
-	// 1. Build Phase (Left Table - should be the smaller one ideally)
-	leftPlan := plan.SubPlans[0]
-	leftRes, err := e.Execute(ctx, leftPlan)
+	// 1. Fetch Left and Right Tables in Parallel
+	var wg sync.WaitGroup
+	var leftRes, rightRes *Result
+	var leftErr, rightErr error
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		leftRes, leftErr = e.Execute(ctx, plan.SubPlans[0])
+	}()
+
+	go func() {
+		defer wg.Done()
+		rightRes, rightErr = e.Execute(ctx, plan.SubPlans[1])
+	}()
+
+	wg.Wait()
+
+	if leftErr != nil {
+		return nil, leftErr
+	}
+	if rightErr != nil {
+		return nil, rightErr
+	}
+
+	// 3. Execute Join via Rust FFI (Fast Path)
+	// Join Key assumption for MVP: "id" or specified in plan
+	joinKey := "id"
+	// In real impl: joinKey := plan.Query.Select.Joins[0].On.Left (simplified)
+
+	// Ensure Documents are []interface{}
+	// core.ExecuteHashJoin takes []interface{}
+
+	joinedDocs, err := core.ExecuteHashJoin(leftRes.Documents, rightRes.Documents, joinKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to execute rust hash join: %v", err)
 	}
 
-	// Build Hash Table: JoinKey -> []Document
-	// Assumption: Join Key is "id" for MVP, or specified in plan
-	// joinKey := plan.Query.Select.Joins[0].On.Left
-	joinKey := "id" // MVP Hardcode
-
-	hashTable := make(map[string][]interface{})
-	for _, doc := range leftRes.Documents {
-		if docMap, ok := doc.(map[string]interface{}); ok {
-			if keyVal, ok := docMap[joinKey]; ok {
-				keyStr := fmt.Sprintf("%v", keyVal)
-				hashTable[keyStr] = append(hashTable[keyStr], doc)
-			}
-		}
-	}
-
-	// 2. Probe Phase (Right Table)
-	rightPlan := plan.SubPlans[1]
-	rightRes, err := e.Execute(ctx, rightPlan)
-	if err != nil {
-		return nil, err
-	}
-
-	finalDocs := []interface{}{}
-	rightJoinKey := "user_id" // MVP: Assumes joining on user_id foreign key
-
-	for _, rDoc := range rightRes.Documents {
-		rDocMap, ok := rDoc.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		if keyVal, ok := rDocMap[rightJoinKey]; ok {
-			keyStr := fmt.Sprintf("%v", keyVal)
-			// Look up in Hash Table
-			if matches, found := hashTable[keyStr]; found {
-				for _, match := range matches {
-					// Merge match (Left) and rDoc (Right)
-					merged := make(map[string]interface{})
-					if lMap, ok := match.(map[string]interface{}); ok {
-						for k, v := range lMap {
-							merged["left_"+k] = v // Prefix to avoid collision
-						}
-					}
-					for k, v := range rDocMap {
-						merged["right_"+k] = v
-					}
-					finalDocs = append(finalDocs, merged)
-				}
-			}
-		}
-	}
-
-	return &Result{Documents: finalDocs, Count: len(finalDocs)}, nil
+	return &Result{Documents: joinedDocs, Count: len(joinedDocs)}, nil
 }
 
 // ScatterHelper could go here (fan-out, fan-in)

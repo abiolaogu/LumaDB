@@ -221,6 +221,13 @@ func (n *Node) Shutdown() error {
 	return nil
 }
 
+// AddTrigger registers a new event trigger
+func (n *Node) AddTrigger(config events.TriggerConfig) {
+	if n.triggers != nil {
+		n.triggers.AddTrigger(config)
+	}
+}
+
 // IsLeader returns true if this node is the cluster leader
 func (n *Node) IsLeader() bool {
 	n.leaderMu.RLock()

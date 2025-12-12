@@ -49,6 +49,9 @@ extern LumaResult luma_snapshot_load(LumaHandle handle, const char* path);
 // Info
 extern LumaResult luma_stats(LumaHandle handle, LumaBuffer* stats_out);
 extern const char* luma_version();
+extern char* luma_execution_hash_join(const char* left, const char* right, const char* key);
+extern double luma_execution_aggregate(const char* values, const char* op);
+extern void luma_free_string(char* s); // Explicit declaration
 */
 import "C"
 
@@ -470,4 +473,52 @@ func (db *Database) Restore(path string) error {
 // Version returns the TDB+ version
 func Version() string {
 	return C.GoString(C.luma_version())
+}
+
+// ExecuteHashJoin performs a hash join using the Rust engine
+func ExecuteHashJoin(left, right []interface{}, key string) ([]interface{}, error) {
+	leftJSON, err := json.Marshal(left)
+	if err != nil {
+		return nil, err
+	}
+	rightJSON, err := json.Marshal(right)
+	if err != nil {
+		return nil, err
+	}
+
+	cLeft := C.CString(string(leftJSON))
+	defer C.free(unsafe.Pointer(cLeft))
+	cRight := C.CString(string(rightJSON))
+	defer C.free(unsafe.Pointer(cRight))
+	cKey := C.CString(key)
+	defer C.free(unsafe.Pointer(cKey))
+
+	cResult := C.luma_execution_hash_join(cLeft, cRight, cKey)
+	if cResult == nil {
+		return nil, ErrInternal
+	}
+	defer C.luma_free_string(cResult) // Use safe deallocation
+
+	resultJSON := C.GoString(cResult)
+	var results []interface{}
+	if err := json.Unmarshal([]byte(resultJSON), &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// ExecuteAggregate performs an aggregation using the Rust engine
+func ExecuteAggregate(values []interface{}, op string) (float64, error) {
+	valuesJSON, err := json.Marshal(values)
+	if err != nil {
+		return 0, err
+	}
+
+	cValues := C.CString(string(valuesJSON))
+	defer C.free(unsafe.Pointer(cValues))
+	cOp := C.CString(op)
+	defer C.free(unsafe.Pointer(cOp))
+
+	result := C.luma_execution_aggregate(cValues, cOp)
+	return float64(result), nil
 }

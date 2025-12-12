@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: luma-cluster
+spec:
+  serviceName: "luma"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: luma
+  template:
+    metadata:
+      labels:
+        app: luma
+    spec:
+      containers:
+      - name: luma
+        image: luma-db:v2.7.0
+        ports:
+        - containerPort: 8080
+        - containerPort: 9000
+        env:
+        - name: LUMA_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/luma
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: luma-service
+spec:
+  selector:
+    app: luma
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: LoadBalancer

@@ -37,7 +37,13 @@ This training program is designed to take you from a LumaDB novice to an expert 
 - **3.3 Monitoring**: Understanding the Metrics API and Dashboards.
 - **3.4 Lab 3**: Simulating load and observing data migration to SSD.
 
-## Module 4: Cluster Administration (4 Hours)
+## Module 4: Advanced Features (4 Hours)
+**Goal:** Leverage Kubernetes and Advanced Queries.
+
+- **4.1 Kubernetes Operator**: Deploying and managing LumaClusters on K8s.
+- **4.2 Lab 4**: Deploying a cluster on Minikube.
+
+## Module 5: Cluster Administration (4 Hours)
 **Goal:** Managing a production LumaDB cluster.
 
 - **4.1 Cluster Topology**: Joining nodes and rebalancing.

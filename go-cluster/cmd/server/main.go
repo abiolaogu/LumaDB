@@ -103,12 +103,19 @@ func main() {
 	// Create router for request distribution
 	rtr := router.NewRouter(node, logger)
 
-	// Initialize Luma Platform (MCP, GraphQL, Auth, Events)
+	// Initialize Luma Platform
 	plt := platform.NewPlatform(node, logger)
 	if err := plt.Start(); err != nil {
 		logger.Error("Failed to start Platform", zap.Error(err))
 	}
 
+	// Start Platform Server (REST/GraphQL)
+	platformServer := platform.NewServer(node, plt, logger)
+	go func() {
+		if err := platformServer.Start(":8080"); err != nil {
+			logger.Error("Platform Server failed", zap.Error(err))
+		}
+	}()
 	// Create HTTP API server
 	apiServer := api.NewServer(node, rtr, ragService, logger)
 

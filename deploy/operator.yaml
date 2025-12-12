@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: luma-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: luma-operator
+  namespace: luma-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: luma-operator-role
+rules:
+- apiGroups: ["luma.db"]
+  resources: ["lumaclusters", "lumaclusters/status"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["services", "pods", "events"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: luma-operator-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: luma-operator-role
+subjects:
+- kind: ServiceAccount
+  name: luma-operator
+  namespace: luma-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: luma-operator
+  namespace: luma-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: luma-operator
+  template:
+    metadata:
+      labels:
+        app: luma-operator
+    spec:
+      serviceAccountName: luma-operator
+      containers:
+      - name: operator
+        image: lumadb/operator:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /manager

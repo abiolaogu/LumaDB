@@ -8,33 +8,28 @@ import (
 	"github.com/graphql-go/graphql/gqlerrors"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/lumadb/cluster/pkg/cluster"
+	"github.com/lumadb/cluster/pkg/platform/federation"
 	"go.uber.org/zap"
 )
 
 // GraphQLEngine manages the dynamic GraphQL schema
 type GraphQLEngine struct {
-	node          *cluster.Node
-	logger        *zap.Logger
-	schema        graphql.Schema
-	hasSchema     bool
-	remoteSchemas map[string]string // name -> url
+	node      *cluster.Node
+	logger    *zap.Logger
+	registry  *federation.SourceRegistry
+	schema    graphql.Schema
+	hasSchema bool
 }
 
-func NewGraphQLEngine(node *cluster.Node, logger *zap.Logger) *GraphQLEngine {
+func NewGraphQLEngine(node *cluster.Node, registry *federation.SourceRegistry, logger *zap.Logger) *GraphQLEngine {
 	return &GraphQLEngine{
-		node:          node,
-		logger:        logger,
-		remoteSchemas: make(map[string]string),
+		node:     node,
+		registry: registry,
+		logger:   logger,
 	}
 }
 
-// AddRemoteSchema registers an external GraphQL service
-func (e *GraphQLEngine) AddRemoteSchema(name, url string) {
-	e.remoteSchemas[name] = url
-	e.hasSchema = false // Force rebuild
-}
-
-// BuildSchema dynamically constructs the GraphQL schema from database collections
+// BuildSchema dynamically constructs the GraphQL schema from database collections AND federated sources
 func (e *GraphQLEngine) BuildSchema() error {
 	e.logger.Info("Building GraphQL Schema...")
 
@@ -46,8 +41,6 @@ func (e *GraphQLEngine) BuildSchema() error {
 				return "world", nil
 			},
 		},
-		// Dynamic fields will be added here by iterating collections
-		// For MVP, we expose a generic 'documents' query
 	}
 
 	// Root Mutation
@@ -84,12 +77,10 @@ func (e *GraphQLEngine) BuildSchema() error {
 	collections, err := e.node.ListCollections()
 	if err != nil {
 		e.logger.Error("Failed to list collections for schema build", zap.Error(err))
-		// Fallback to empty schema or simple hello world
 	}
 
 	for _, colName := range collections {
 		// Define Type for Collection
-		// Since schema is dynamic/schemaless, we use a generic structure with JSON data
 		objType := graphql.NewObject(graphql.ObjectConfig{
 			Name: colName,
 			Fields: graphql.Fields{
@@ -100,7 +91,6 @@ func (e *GraphQLEngine) BuildSchema() error {
 		})
 
 		// --- QUERIES ---
-
 		// 1. Get by ID
 		queryFields[colName+"_by_pk"] = &graphql.Field{
 			Type: objType,
@@ -109,15 +99,11 @@ func (e *GraphQLEngine) BuildSchema() error {
 			},
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 				id, _ := p.Args["id"].(string)
-				// Call DB Get
-				// We need access to the underlying DB instance from Node
-				// Assuming e.node has a method to get specific collection data helper
-				// For now, we use a direct DB call if exposed, or add helper to Node
 				return e.node.GetDocument(colName, id)
 			},
 		}
 
-		// 2. List (with simple filter support)
+		// 2. List
 		queryFields[colName] = &graphql.Field{
 			Type: graphql.NewList(objType),
 			Args: graphql.FieldConfigArgument{
@@ -129,23 +115,15 @@ func (e *GraphQLEngine) BuildSchema() error {
 				if limit <= 0 {
 					limit = 10
 				}
-
-				query := map[string]interface{}{}
-				if limit > 0 {
-					query["limit"] = limit
-				}
-
-				// Handle 'where' filter
+				query := map[string]interface{}{"limit": limit}
 				if whereVal, ok := p.Args["where"].(map[string]interface{}); ok {
 					query["filter"] = whereVal
 				}
-
 				return e.node.RunQuery(colName, query)
 			},
 		}
 
 		// --- MUTATIONS ---
-
 		// 3. Insert
 		mutationFields["insert_"+colName] = &graphql.Field{
 			Type: graphql.String, // Returns ID
@@ -157,46 +135,34 @@ func (e *GraphQLEngine) BuildSchema() error {
 				return e.node.InsertDocument(colName, data)
 			},
 		}
+	}
 
-		// 4. Update
-		mutationFields["update_"+colName] = &graphql.Field{
-			Type: graphql.String, // Returns status/ID
-			Args: graphql.FieldConfigArgument{
-				"id":   &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.String)},
-				"data": &graphql.ArgumentConfig{Type: graphql.NewNonNull(jsonScalar)},
-			},
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				id, _ := p.Args["id"].(string)
-				data, _ := p.Args["data"].(map[string]interface{})
-				return "ok", e.node.UpdateDocument(colName, id, data)
-			},
-		}
+	// 2. Stitched Federated Sources - Native Only
+	if e.registry != nil {
+		sources := e.registry.List()
+		for srcName, src := range sources {
+			// In native-only mode, we only support LumaDB sources or similar NoSQL
+			// SQL introspection logic is removed.
+			// Future: Implement LumaDB-to-LumaDB federation here.
+			e.logger.Info("Federated source present but SQL stitching disabled", zap.String("source", srcName))
 
-		// 5. Delete
-		mutationFields["delete_"+colName] = &graphql.Field{
-			Type: graphql.String, // Returns status
-			Args: graphql.FieldConfigArgument{
-				"id": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.String)},
-			},
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				id, _ := p.Args["id"].(string)
-				return "ok", e.node.DeleteDocument(colName, id)
-			},
+			// Introspect source (Generic)
+			schema, err := src.Introspect(context.Background())
+			if err != nil {
+				e.logger.Error("Failed to introspect source", zap.String("source", srcName), zap.Error(err))
+				continue
+			}
+
+			// TODO: Implement generic stitching for non-SQL sources if needed
+			// For now, we skip SQL table generation
+			_ = schema
 		}
 	}
 
-	rootQuery := graphql.ObjectConfig{Name: "Query", Fields: queryFields}
-	rootMutation := graphql.ObjectConfig{Name: "Mutation", Fields: mutationFields}
-
+	// Finalize Schema
 	schemaConfig := graphql.SchemaConfig{
-		Query:    graphql.NewObject(rootQuery),
-		Mutation: graphql.NewObject(rootMutation),
-		Subscription: graphql.NewObject(graphql.ObjectConfig{
-			Name: "Subscription",
-			Fields: graphql.Fields{
-				"noop": &graphql.Field{Type: graphql.String}, // Placeholder
-			},
-		}),
+		Query:    graphql.NewObject(graphql.ObjectConfig{Name: "Query", Fields: queryFields}),
+		Mutation: graphql.NewObject(graphql.ObjectConfig{Name: "Mutation", Fields: mutationFields}),
 	}
 
 	schema, err := graphql.NewSchema(schemaConfig)

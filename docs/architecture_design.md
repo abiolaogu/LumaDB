@@ -64,6 +64,12 @@ struct HybridStorage {
 }
 ```
 
+### 2.2 Execution Engine (Hybrid Rust/Go)
+The query execution layer leverages the best of both languages:
+- **Go Executor**: Handles query planning, parsing, and concurrent orchestration of sub-plans.
+- **Rust Kernels**: CPU-intensive operations (Hash Joins, Aggregations, Sorts) are offloaded to Rust via FFI.
+- **SIMD Acceleration**: Rust kernels utilize AVX-512/NEON instructions for vector processing.
+
 ### 2.2 Distributed Cluster (Go)
 
 The cluster management layer (`github.com/lumadb/cluster`) manages topology, consensus, and request routing.

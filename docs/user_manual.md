@@ -59,6 +59,27 @@ Pass the token in the Authorization header:
 curl -H "Authorization: Bearer <TOKEN>" http://localhost:8080/api/v1/users
 ```
 
+## 5. Kubernetes Operator
+For production on Kubernetes, use the LumaDB Operator.
+
+### 6.1 Installation
+```bash
+kubectl apply -f https://github.com/lumadb/operator/releases/latest/download/install.yaml
+```
+
+### 6.2 Creating a Cluster
+```yaml
+apiVersion: lumadb.com/v1alpha1
+kind: LumaCluster
+metadata:
+  name: my-cluster
+spec:
+  replicas: 3
+  version: "v2.4.0"
+  storage:
+    size: "10Gi"
+```
+
 ## 5. Using the Database
 ```
 
@@ -90,6 +111,12 @@ LumaDB supports three query languages:
 
 3. **JQL (JSON Query Language)**: MongoDB-style.
    `{ "find": "users", "filter": { "age": { "$gt": 21 } } }`
+
+## Version 2.7.0 Release Notes
+- **Native Storage**: PostgreSQL dependency removed.
+- **Webhooks**: New Trigger API for event-driven workflows.
+- **Performance**: Rust-based Hash Joins and SIMD Aggregations.
+- **Security**: Granular RBAC and FFI memory safety improvements.
 
 ## 5. Troubleshooting
 

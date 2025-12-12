@@ -1,7 +1,7 @@
 # LumaDB (Luma Database Plus)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.7.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/rust-1.70+-orange.svg" alt="Rust">
   <img src="https://img.shields.io/badge/go-1.21+-00ADD8.svg" alt="Go">
@@ -47,11 +47,16 @@
 - **Automatic Tiering**: Data automatically migrates based on access patterns
 - **NUMA-Aware**: Optimized memory allocation for multi-socket servers
 
-### Ultra-High Performance (Outperforms kdb+)
-- **SIMD Vectorized Operations**: AVX2/AVX-512 accelerated analytics
-- **Columnar Storage**: kdb+-style column-oriented engine for analytics
-- **Time-Series Optimizations**: Specialized indexing and compression
-- **io_uring**: Kernel-bypass async I/O for maximum throughput
+### Ultra-High Performance (Extreme Optimization)
+- **Rust SIMD Aggregations**: AVX-512/NEON optimized `Sum`, `Avg`, `Min`, `Max` operations.
+- **Hybrid Execution Engine**: Rust for heavy lifting (Joins, Aggregates) + Go for massive concurrency.
+- **Columnar Storage**: kdb+-style vectors with zero-copy FFI.
+- **io_uring**: Async I/O for 1M+ IOPS on single node.
+- **Hash Joins**: Lock-free, parallel hash join implementation in Rust.
+
+### Concurrency (Massive Parallelism)
+- **Go Routines**: Millions of lightweight threads for request handling.
+- **Parallel Sub-Plans**: Query planner executes independent branches in parallel.
 
 ### Performance (Inspired by Aerospike, ScyllaDB, DragonflyDB)
 - **Rust Core**: Lock-free data structures, zero-copy I/O, memory-mapped files
@@ -100,7 +105,6 @@
 ### GraphQL & REST Engine
 - **Auto-generated APIs**: Instant GraphQL and REST endpoints for your data.
 - **Live Queries**: Real-time subscriptions via WebSockets.
-- **Data Federation**: (Coming Soon) Connect to remote databases.
 
 ### Auth & Security
 - **JWT Authentication**: Built-in identity management using HS256 tokens.

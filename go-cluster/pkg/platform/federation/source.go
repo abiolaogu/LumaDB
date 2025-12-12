@@ -8,9 +8,7 @@ import (
 type SourceType string
 
 const (
-	SourcePostgres SourceType = "POSTGRES"
-	SourceMySQL    SourceType = "MYSQL"
-	SourceREST     SourceType = "REST"
+	SourceREST SourceType = "REST"
 )
 
 // SourceConfig holds connection details

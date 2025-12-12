@@ -8,41 +8,33 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lumadb/cluster/pkg/cluster"
 	"github.com/lumadb/cluster/pkg/platform/auth"
-	"github.com/lumadb/cluster/pkg/platform/cron"
-	gql "github.com/lumadb/cluster/pkg/platform/graphql"
+	"github.com/lumadb/cluster/pkg/platform/events"
 	"go.uber.org/zap"
 )
 
 // Server serves REST and GraphQL APIs
+// Server serves REST and GraphQL APIs
 type Server struct {
-	node       *cluster.Node
-	logger     *zap.Logger
-	gqlEngine  *gql.GraphQLEngine
-	authEngine *auth.AuthEngine
-	cron       *cron.Scheduler
-	router     *gin.Engine
+	node     *cluster.Node
+	logger   *zap.Logger
+	platform *Platform
+	router   *gin.Engine
 }
 
-func NewServer(node *cluster.Node, logger *zap.Logger) *Server {
+func NewServer(node *cluster.Node, platform *Platform, logger *zap.Logger) *Server {
 	return &Server{
-		node:       node,
-		logger:     logger,
-		gqlEngine:  gql.NewGraphQLEngine(node, logger),
-		authEngine: auth.NewAuthEngine(node, logger),
-		cron:       cron.NewScheduler(node, logger),
-		router:     gin.Default(),
+		node:     node,
+		logger:   logger,
+		platform: platform,
+		router:   gin.Default(),
 	}
 }
 
 func (s *Server) Start(addr string) error {
 	s.logger.Info("Starting LumaDB Platform Server", zap.String("addr", addr))
 
-	// Start Cron
-	s.cron.Start()
-	defer s.cron.Stop()
-
 	// Initialize Schema
-	if err := s.gqlEngine.BuildSchema(); err != nil {
+	if err := s.platform.gqlEngine.BuildSchema(); err != nil {
 		s.logger.Error("Failed to build GraphQL schema", zap.Error(err))
 		// Continue anyway, might rebuild later
 	}
@@ -76,6 +68,7 @@ func (s *Server) Start(addr string) error {
 			// GET /api/v1/:collection -> List
 			// POST /api/v1/:collection -> Insert
 			// GET /api/v1/:collection/:id -> Get
+			v1.POST("/triggers", s.handleAddTrigger)
 			v1.GET("/:collection", s.handleRestList)
 			v1.POST("/:collection", s.handleRestInsert)
 			v1.GET("/:collection/:id", s.handleRestGet)
@@ -97,7 +90,7 @@ func (s *Server) handleGraphQL(c *gin.Context) {
 		return
 	}
 
-	result := s.gqlEngine.Execute(c.Request.Context(), body.Query, body.Variables)
+	result := s.platform.gqlEngine.Execute(c.Request.Context(), body.Query, body.Variables)
 	c.JSON(http.StatusOK, result)
 }
 
@@ -105,7 +98,7 @@ func (s *Server) handleGraphQLOrPlayground(c *gin.Context) {
 	// If query params present, execute
 	query := c.Query("query")
 	if query != "" {
-		result := s.gqlEngine.Execute(c.Request.Context(), query, nil)
+		result := s.platform.gqlEngine.Execute(c.Request.Context(), query, nil)
 		c.JSON(http.StatusOK, result)
 		return
 	}
@@ -119,7 +112,7 @@ func (s *Server) handleGraphQLOrPlayground(c *gin.Context) {
 func (s *Server) handleRestList(c *gin.Context) {
 	collection := c.Param("collection")
 	role := c.GetString("role")
-	if !s.authEngine.IsAuthorized(role, auth.ActionRead) {
+	if !s.platform.authEngine.IsAuthorized(role, auth.ActionRead) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
 		return
 	}
@@ -133,7 +126,7 @@ func (s *Server) handleRestList(c *gin.Context) {
 func (s *Server) handleRestInsert(c *gin.Context) {
 	collection := c.Param("collection")
 	role := c.GetString("role")
-	if !s.authEngine.IsAuthorized(role, auth.ActionWrite) {
+	if !s.platform.authEngine.IsAuthorized(role, auth.ActionWrite) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
 		return
 	}
@@ -165,11 +158,50 @@ func (s *Server) handleStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
+func (s *Server) handleAddTrigger(c *gin.Context) {
+	// Require Admin Role
+	role := c.GetString("role")
+	if role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can manage triggers"})
+		return
+	}
+
+	var config struct {
+		Name       string            `json:"name"`
+		Collection string            `json:"collection"`
+		Events     []string          `json:"events"`
+		Sink       string            `json:"sink"`
+		Config     map[string]string `json:"config"`
+	}
+
+	if err := c.BindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Map strings to internal types
+	var eventTypes []events.EventType
+	for _, e := range config.Events {
+		eventTypes = append(eventTypes, events.EventType(e))
+	}
+
+	trigger := events.TriggerConfig{
+		Name:       config.Name,
+		Collection: config.Collection,
+		Events:     eventTypes,
+		Sink:       events.SinkType(config.Sink),
+		Config:     config.Config,
+	}
+
+	s.node.AddTrigger(trigger)
+	c.JSON(http.StatusCreated, gin.H{"status": "created", "trigger": config.Name})
+}
+
 func (s *Server) handleRestGet(c *gin.Context) {
 	collection := c.Param("collection")
 	id := c.Param("id")
 	role := c.GetString("role")
-	if !s.authEngine.IsAuthorized(role, auth.ActionRead) {
+	if !s.platform.authEngine.IsAuthorized(role, auth.ActionRead) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
 		return
 	}
@@ -190,7 +222,7 @@ func (s *Server) handleLogin(c *gin.Context) {
 
 	// Mock User Validation (In real world, check DB)
 	if creds.Username == "admin" && creds.Password == "password" {
-		token, err := s.authEngine.GenerateToken("admin-user-id", "admin")
+		token, err := s.platform.authEngine.GenerateToken("admin", "admin")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 			return
@@ -217,7 +249,7 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		}
 
 		tokenString := parts[1]
-		claims, err := s.authEngine.ValidateToken(tokenString)
+		claims, err := s.platform.authEngine.ValidateToken(tokenString)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			return

@@ -5,6 +5,7 @@
 
 mod handles;
 mod types;
+mod execution;
 
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 use std::ptr;
