@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package luma.v1;
+
+option go_package = "github.com/lumadb/cluster/pkg/api/pb";
+
+service LumaService {
+  // Execute a single query (unary)
+  rpc Execute (QueryRequest) returns (QueryResponse);
+  
+  // Stream results (for large result sets)
+  rpc Stream (QueryRequest) returns (stream QueryResponse);
+}
+
+message QueryRequest {
+  // Target collection (optional, can be inferred from query)
+  string collection = 1;
+  
+  // The query string (SQL, CQL, or JSON MQL)
+  string query = 2;
+  
+  // The dialect/format of the query
+  // "sql-pg", "sql-mysql", "cql", "mql", "lumair-json"
+  string dialect = 3;
+  
+  // Optional binary payload (e.g. serialized LumaIR or params)
+  bytes payload = 4;
+}
+
+message QueryResponse {
+  bool success = 1;
+  string error = 2;
+  
+  // Result data (JSON or binary encoded rows)
+  bytes result = 3;
+  
+  // Metadata
+  int64 rows_affected = 4;
+  string content_type = 5; // "json", "msgpack", etc.
+}

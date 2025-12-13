@@ -1,0 +1,113 @@
+warning: unused import: `std::borrow::Cow`
+ --> crates/luma-core/src/types.rs:5:5
+  |
+5 | use std::borrow::Cow;
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ProtocolError`
+ --> crates/luma-core/src/transactions.rs:2:13
+  |
+2 | ...::{ProtocolError, R...
+  |       ^^^^^^^^^^^^^
+
+warning: `luma-protocol-core` (lib) generated 2 warnings (run `cargo fix --lib -p luma-protocol-core` to apply 2 suggestions)
+   Compiling luma-cassandra v0.1.0 (/Users/AbiolaOgunsakin1/tdb+ fork/tdb-fork/lumadb-compat/crates/luma-cassandra)
+error[E0432]: unresolved import `super::messages::StartupBody`
+ --> crates/luma-cassandra/src/protocol/tests.rs:3:23
+  |
+3 | use super::messages::{StartupBody, RowsBody, RowsMetadata, ColSpec, ResultBody, ResultKind};
+  |                       ^^^^^^^^^^^ no `StartupBody` in `protocol::messages`
+  |
+  = help: consider importing this struct instead:
+          crate::protocol::frames::StartupBody
+
+warning: unused import: `read_string`
+ --> crates/luma-cassandra/src/protocol/messages.rs:2:49
+  |
+2 | use crate::protocol::frames::{read_long_string, read_string, write_string};
+  |                                                 ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::collections::HashMap`
+ --> crates/luma-cassandra/src/protocol/messages.rs:4:5
+  |
+4 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `BytesMut`
+ --> crates/luma-cassandra/src/protocol/tests.rs:1:13
+  |
+1 | use bytes::{BytesMut};
+  |             ^^^^^^^^
+
+warning: unused imports: `CassandraProtocol`, `Frame`, and `Opcode`
+ --> crates/luma-cassandra/src/protocol/tests.rs:2:13
+  |
+2 | use super::{CassandraProtocol, Frame, Opcode};
+  |             ^^^^^^^^^^^^^^^^^  ^^^^^  ^^^^^^
+
+warning: unused imports: `ColSpec`, `ResultBody`, `ResultKind`, `RowsBody`, and `RowsMetadata`
+ --> crates/luma-cassandra/src/protocol/tests.rs:3:36
+  |
+3 | use super::messages::{StartupBody, RowsBody, RowsMetadata, ColSpec, ResultBody, ResultKind};
+  |                                    ^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^
+
+warning: unused import: `crate::types::CQLType`
+ --> crates/luma-cassandra/src/protocol/tests.rs:4:5
+  |
+4 | use crate::types::CQLType;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Buf`
+ --> crates/luma-cassandra/src/protocol/mod.rs:5:13
+  |
+5 | use bytes::{Buf, BufMut, BytesMut};
+  |             ^^^
+
+warning: unused import: `ProtocolError`
+ --> crates/luma-cassandra/src/protocol/mod.rs:6:26
+  |
+6 | use luma_protocol_core::{ProtocolError, Result};
+  |                          ^^^^^^^^^^^^^
+
+warning: unused import: `Buf`
+ --> crates/luma-cassandra/src/types.rs:2:13
+  |
+2 | use bytes::{Buf, BufMut, BytesMut};
+  |             ^^^
+
+warning: unused imports: `ProtocolError` and `Result`
+ --> crates/luma-cassandra/src/types.rs:3:26
+  |
+3 | use luma_protocol_core::{ProtocolError, Result};
+  |                          ^^^^^^^^^^^^^  ^^^^^^
+
+warning: unused import: `uuid::Uuid`
+ --> crates/luma-cassandra/src/types.rs:4:5
+  |
+4 | use uuid::Uuid;
+  |     ^^^^^^^^^^
+
+warning: unused import: `Frame`
+ --> crates/luma-cassandra/src/protocol/tests.rs:2:32
+  |
+2 | use super::{CassandraProtocol, Frame, Opcode};
+  |                                ^^^^^
+
+warning: unused variable: `dst`
+ --> crates/luma-cassandra/src/protocol/messages.rs:9:18
+  |
+9 |     pub fn write(dst: &mut BytesMut) {
+  |                  ^^^ help: if this is intentional, prefix it with an underscore: `_dst`
+  |
+  = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0432`.
+warning: `luma-cassandra` (lib test) generated 9 warnings (7 duplicates)
+error: could not compile `luma-cassandra` (lib test) due to 1 previous error; 9 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+warning: `luma-cassandra` (lib) generated 12 warnings (1 duplicate)
+error: could not compile `luma-cassandra` (lib) due to 1 previous error; 12 warnings emitted

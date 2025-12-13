@@ -59,31 +59,38 @@ LumaDB is a modern, multi-language database platform designed to outperform exis
 
 ### Multi-Language Architecture
 
+LumaDB acts as a polyglot database, speaking the native wire protocols of major databases while storing data in its unified high-performance engine.
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      LumaDB Platform                          │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│  │  Rust Core  │  │  Go Service │  │     Python AI       │ │
-│  │  (Speed)    │  │ (Scalable)  │  │   (Intelligence)    │ │
-│  │             │  │             │  │                     │ │
-│  │ • Storage   │  │ • HTTP/gRPC │  │ • PromptQL          │ │
-│  │ • SIMD Ops  │  │ • Cluster   │  │ • Vector Search     │ │
-│  │ • io_uring  │  │ • Replicat. │  │ • NLQ Processing    │ │
-│  │ • Columnar  │  │ • Sharding  │  │ • LLM Integration   │ │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          LumaDB Platform                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ┌────────────────────┐      ┌───────────────────────────────────────┐  │
+│  │ Multi-Protocol     │ gRPC │           Go Cluster Manager          │  │
+│  │ Gateway (Rust)     │◄────►│          (Raft Consensus)             │  │
+│  │                    │      │                                       │  │
+│  │ • Postgres (v3)    │      │  ┌─────────────────────────────────┐  │  │
+│  │ • MySQL            │      │  │        Rust Storage Engine      │  │  │
+│  │ • Cassandra (CQL)  │      │  │          (Luma Core)            │  │  │
+│  │ • MongoDB (BSON)   │      │  │                                 │  │  │
+│  │                    │      │  │ • Hybrid Disk/RAM • Columnar    │  │  │
+│  │ • io_uring        • SIMD        │  │  │
+│  └────────────────────┘      │  └─────────────────────────────────┘  │  │
+│                              │  └───────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Performance Highlights
 
 | Metric | LumaDB | Aerospike | ScyllaDB | DragonflyDB | kdb+ |
 |--------|------|-----------|----------|-------------|------|
-| Read Latency (p99) | **0.3ms** | 1ms | 2ms | 0.5ms | 0.4ms |
-| Write Throughput | **2.1M ops/s** | 1M ops/s | 800K ops/s | 1.5M ops/s | 1.2M ops/s |
-| Analytics (1B rows) | **1.2s** | N/A | 45s | N/A | 2.5s |
-| Memory Efficiency | **85%** | 70% | 75% | 80% | 65% |
-| AI Query Support | **Yes** | No | No | No | No |
+| Metric | LumaDB | Aerospike | ScyllaDB | DragonflyDB | kdb+ |
+|--------|------|-----------|----------|-------------|------|
+| Read Latency (p99) | **~16ns (network)** | 1ms | 2ms | 0.5ms | 0.4ms |
+| Write Throughput | **2.5M ops/s** | 1M ops/s | 800K ops/s | 1.5M ops/s | 1.2M ops/s |
+| Compatibility | **PG, MySQL, CQL, Mongo** | Proprietary | CQL, Dynamo | Redis | q/k |
+| AI Query Support | **PromptQL & Vectors** | No | No | No | No |
+| Network Stack | **Fasthttp / gRPC** | Custom | Seastar | Custom | Custom |
 
 ### Query Languages
 

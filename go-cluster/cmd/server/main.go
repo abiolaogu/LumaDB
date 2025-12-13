@@ -3,11 +3,9 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -19,6 +17,7 @@ import (
 	"github.com/lumadb/cluster/pkg/config"
 	"github.com/lumadb/cluster/pkg/platform"
 	"github.com/lumadb/cluster/pkg/router"
+	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
 )
 
@@ -119,15 +118,15 @@ func main() {
 	// Create HTTP API server
 	apiServer := api.NewServer(node, rtr, ragService, logger)
 
-	// Start HTTP server
-	httpServer := &http.Server{
-		Addr:    cfg.HTTPAddr,
+	// Start HTTP server (FastHTTP)
+	httpServer := &fasthttp.Server{
 		Handler: apiServer.Handler(),
+		Name:    "LumaDB API",
 	}
 
 	go func() {
 		logger.Info("HTTP server starting", zap.String("addr", cfg.HTTPAddr))
-		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
+		if err := httpServer.ListenAndServe(cfg.HTTPAddr); err != nil {
 			logger.Error("HTTP server error", zap.Error(err))
 		}
 	}()
@@ -154,10 +153,13 @@ func main() {
 	logger.Info("Shutting down...")
 
 	// Graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// defer cancel()
+	// FastHTTP Shutdown doesn't take context in older versions but check
+	if err := httpServer.Shutdown(); err != nil {
+		logger.Error("HTTP shutdown error", zap.Error(err))
+	}
 
-	httpServer.Shutdown(ctx)
 	grpcServer.GracefulStop()
 	node.Shutdown()
 

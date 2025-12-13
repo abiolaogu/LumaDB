@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  lumadb:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "5432:5432" # PostgreSQL
+      - "3306:3306" # MySQL
+      - "9042:9042" # Cassandra
+      - "27017:27017" # MongoDB
+      - "9090:9090" # Metrics
+    volumes:
+      - lumadb-data:/var/lib/lumadb
+      - ../config:/etc/lumadb:ro
+    environment:
+      - LUMADB_LOG_LEVEL=info
+    # healthcheck:
+    #   test: ["CMD", "lumactl", "health"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    # command:
+    #   - '--config.file=/etc/prometheus/prometheus.yml'
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  lumadb-data:
+  grafana-data:

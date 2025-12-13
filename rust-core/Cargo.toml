@@ -59,6 +59,17 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 rhai = { version = "1.16", features = ["sync", "serde"] }
 libc = "0.2.178"
 
+# Protocol Support
+sqlparser = "0.41"
+tokio-util = { version = "0.7", features = ["codec", "io"] }
+byteorder = "1.5"
+hex = "0.4"
+bson = "2.9"
+sha2 = "0.10"
+md5 = "0.7"
+tokio-postgres = "0.7"
+
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.8"
@@ -75,9 +86,19 @@ name = "storage_bench"
 harness = false
 path = "../benchmarks/rust_bench.rs"
 
+[[bin]]
+name = "luma_server"
+path = "src/bin/luma_server.rs"
+
+[[bin]]
+name = "lumacli"
+path = "src/bin/lumacli.rs"
+
+
 [profile.release]
 opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = false
+

@@ -1,0 +1,31 @@
+[package]
+name = "luma-postgres"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+luma-protocol-core = { path = "../luma-core" }
+tokio = { workspace = true }
+bytes = { workspace = true }
+async-trait = "0.1"
+byteorder = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+# auth dependencies
+md-5 = "0.10"
+rand = "0.8"
+base64 = "0.21"
+hmac = "0.12"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+# postgres specific
+md5 = "0.7"
+hex = "0.4"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "protocol_bench"
+harness = false

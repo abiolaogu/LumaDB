@@ -1,0 +1,16 @@
+[package]
+name = "luma-mysql"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+luma-protocol-core = { path = "../luma-core" }
+bytes = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+byteorder = "1.5"
+sha1 = "0.10"
+rand = "0.8"
+bitflags = "2.4"

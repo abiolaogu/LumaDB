@@ -1,0 +1,29 @@
+[package]
+name = "luma-tools"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+luma-protocol-core = { workspace = true }
+# We might need client libs if we implement actual dumping, but stubs are fine for now.
+
+[[bin]]
+name = "lumactl"
+path = "src/bin/lumactl.rs"
+
+[[bin]]
+name = "lumadump"
+path = "src/bin/lumadump.rs"
+
+[[bin]]
+name = "lumarestore"
+path = "src/bin/lumarestore.rs"
+
+[[bin]]
+name = "lumapool"
+path = "src/bin/lumapool.rs"

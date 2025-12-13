@@ -80,7 +80,9 @@ pub mod io;          // io_uring and direct I/O
 pub mod latency;     // Predictable latency SLAs
 // pub mod ffi;         // FFI bindings for Go/Python (Moved to top)
 pub mod node_bindings; // Node.js bindings using napi-rs
+
 pub mod scripting;     // Stored Procedures & Triggers
+pub mod server;        // Multi-protocol Server Adapters
 
 // Re-exports - Core
 pub use storage::{StorageEngine, Collection};
