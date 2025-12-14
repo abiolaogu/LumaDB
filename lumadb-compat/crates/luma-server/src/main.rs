@@ -1,9 +1,10 @@
 mod config;
 mod metrics;
-mod config;
-mod metrics;
 mod server;
 mod connection;
+mod api_vector;
+mod grpc;
+mod protocols; // Added protocols
 
 use clap::Parser;
 use std::path::PathBuf;

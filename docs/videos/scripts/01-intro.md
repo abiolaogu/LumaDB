@@ -1,174 +1,86 @@
-# Video 1.1: Introduction to LumaDB
+# Video 1: Introduction to LumaDB
 
-## Video Details
-- **Duration**: 8 minutes
-- **Level**: Beginner
-- **Prerequisites**: None
+## Duration: 5 minutes
+## Version: 3.0
 
 ---
 
-## SCRIPT
+## Scene 1: Hook (0:00 - 0:30)
 
-### [0:00 - 0:30] INTRO
-
-**[SCREEN: Title card with LumaDB logo and "Introduction to LumaDB" text]**
-
-**NARRATOR:**
-"Welcome to LumaDB, the next-generation database platform that combines blazing-fast performance with AI-powered query capabilities. In this video, you'll learn what makes LumaDB unique and why it's the future of data management."
-
-**[TRANSITION: Fade to presenter or animated architecture diagram]**
-
----
-
-### [0:30 - 2:00] WHAT IS LumaDB
-
-**[SCREEN: Architecture diagram showing three-layer stack]**
-
-**NARRATOR:**
-"LumaDB is built on a revolutionary three-language architecture. At its core, Rust provides unmatched speed and memory safety. Go handles scalability and networking. And Python powers our AI capabilities including PromptQL."
-
-**[SCREEN: Highlight each layer as mentioned]**
-
-"This combination allows LumaDB to achieve something no other database can: sub-millisecond latencies with natural language query understanding."
-
-**[SCREEN: Performance comparison chart]**
-
-"In benchmarks, LumaDB outperforms Aerospike, ScyllaDB, DragonflyDB, and even kdb+ in most scenarios. But performance is just the beginning."
-
----
-
-### [2:00 - 4:00] KEY FEATURES
-
-**[SCREEN: Feature icons appearing as each is mentioned]**
-
-**NARRATOR:**
-"Let me walk you through LumaDB's standout features."
-
-**Feature 1: PromptQL**
-"First, PromptQL. Instead of writing complex SQL queries, just describe what you want in plain English. Ask 'Show me customers who spent more than average last month' and LumaDB figures out the rest."
-
-**[SCREEN: Live demo - typing PromptQL query]**
-
-**Feature 2: Hybrid Memory**
-"Second, our hybrid memory architecture. Like Aerospike, we keep hot data in RAM and automatically tier cold data to SSD. This means massive datasets fit in memory-like performance without memory-like costs."
-
-**[SCREEN: Diagram showing RAM → SSD → HDD tiers]**
-
-**Feature 3: SIMD Analytics**
-"Third, vectorized analytics. LumaDB uses CPU SIMD instructions to process analytical queries at incredible speeds. Aggregate a billion rows in just over one second."
-
-**[SCREEN: Side-by-side speed comparison with other databases]**
-
-**Feature 4: Multi-Model**
-"Finally, LumaDB is truly multi-model. Documents, columnar data, time-series, key-value - all in one database. Choose the right model for each use case."
-
----
-
-### [4:00 - 5:30] DEMO: FIRST LOOK
-
-**[SCREEN: Terminal with LumaDB client]**
-
-**NARRATOR:**
-"Let's see LumaDB in action. I'll connect and run a few queries."
-
-**[TYPE: Connection command]**
-```python
-from tdb import LumaDBClient
-client = LumaDBClient(host="localhost", port=8080)
+**[VISUAL: Terminal with binary size]**
+```
+-rwxr-xr-x  7.7M luma-server
 ```
 
-**NARRATOR:**
-"Connected. Now let's create a collection and insert some data."
+**[NARRATION]**
+> "What if you could replace your entire observability stack with a single 7.7 megabyte binary? Meet LumaDB - the unified database for metrics, traces, logs, and more."
 
-**[TYPE: Create and insert]**
-```python
-users = client.collection("users")
-await users.insert({"name": "Alice", "email": "alice@example.com"})
+---
+
+## Scene 2: The Problem (0:30 - 1:30)
+
+**[VISUAL: Diagram showing multiple databases]**
+- Prometheus for metrics
+- Elasticsearch for logs
+- Jaeger for traces
+- PostgreSQL for data
+
+**[NARRATION]**
+> "Modern infrastructure requires multiple specialized databases. Each with different query languages, different protocols, different operational burdens. That complexity costs time and money."
+
+---
+
+## Scene 3: The Solution (1:30 - 3:00)
+
+**[VISUAL: LumaDB architecture diagram]**
+
+**[NARRATION]**
+> "LumaDB speaks the native protocols of these databases. Connect with psql, send metrics with Prometheus remote write, push traces with OTLP. One database, unified storage, zero complexity."
+
+**Features to highlight:**
+- Multi-protocol gateway
+- Unified columnar storage
+- 8x compression with Gorilla
+- Built-in security
+
+---
+
+## Scene 4: Live Demo (3:00 - 4:30)
+
+**[VISUAL: Terminal]**
+
+```bash
+# Start LumaDB
+./luma-server
+
+# Connect with PostgreSQL client
+psql -h localhost -p 5432 -U lumadb
+
+# Query metrics
+SELECT * FROM metrics LIMIT 10;
 ```
 
-**NARRATOR:**
-"And here's where it gets interesting. Let me ask a question in natural language."
-
-**[TYPE: PromptQL query]**
-```python
-result = await engine.query("How many users signed up this month?")
-print(result)
-# Output: 1,234 users signed up in January 2024
-```
-
-**NARRATOR:**
-"No SQL required. LumaDB understood my intent and returned a clear answer."
+**[NARRATION]**
+> "Let's see it in action. Start the server, connect with any PostgreSQL client, and query your data with familiar SQL."
 
 ---
 
-### [5:30 - 7:00] USE CASES
+## Scene 5: Call to Action (4:30 - 5:00)
 
-**[SCREEN: Use case icons and descriptions]**
+**[VISUAL: GitHub page]**
 
-**NARRATOR:**
-"LumaDB excels in several scenarios."
-
-**Use Case 1: Real-Time Analytics**
-"Real-time analytics dashboards that need instant aggregations across billions of events."
-
-**Use Case 2: AI Applications**
-"AI-powered applications where natural language queries improve user experience."
-
-**Use Case 3: High-Throughput**
-"High-throughput systems processing millions of operations per second with strict latency SLAs."
-
-**Use Case 4: Time-Series**
-"Time-series workloads like IoT, financial data, or observability platforms."
+**[NARRATION]**
+> "Ready to simplify your stack? Get started at github.com/lumadb. Star the repo, download the binary, and join our Discord community."
 
 ---
 
-### [7:00 - 7:30] SUMMARY
+## Technical Requirements
 
-**[SCREEN: Bullet point summary]**
-
-**NARRATOR:**
-"To recap, LumaDB gives you:
-- Sub-millisecond performance with hybrid memory
-- Natural language queries with PromptQL
-- SIMD-accelerated analytics
-- Multi-model flexibility
-- Open source with no licensing costs"
+- Terminal font: SF Mono or JetBrains Mono
+- Editor theme: Dark (Dracula or One Dark)
+- Browser: Chrome/Firefox
+- Screen: 1920x1080
 
 ---
 
-### [7:30 - 8:00] NEXT STEPS
-
-**[SCREEN: Next video thumbnail and links]**
-
-**NARRATOR:**
-"Ready to get started? In the next video, we'll walk through installing LumaDB on your system. Click the link to continue, and don't forget to like and subscribe for more LumaDB tutorials."
-
-**[SCREEN: Subscribe button animation, end card with links]**
-
----
-
-## B-ROLL SUGGESTIONS
-
-1. Data center footage for performance segments
-2. Code typing close-ups for demo segments
-3. Animated architecture diagrams
-4. Performance chart animations
-5. Split-screen comparisons
-
-## GRAPHICS NEEDED
-
-1. LumaDB logo (transparent PNG)
-2. Architecture diagram (3-layer)
-3. Performance comparison charts
-4. Feature icons (6)
-5. Use case icons (4)
-6. End card template
-
----
-
-## NOTES FOR EDITOR
-
-- Keep pace energetic but not rushed
-- Add subtle zoom effects on code demos
-- Use lower-third graphics for key statistics
-- Include chapter markers for YouTube
+*Last Updated: December 2024*

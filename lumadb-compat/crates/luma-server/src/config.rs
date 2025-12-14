@@ -15,9 +15,25 @@ pub struct Config {
     pub cassandra: Option<CassandraConfig>,
     #[cfg(feature = "mongodb")]
     pub mongodb: Option<MongoDbConfig>,
+    #[cfg(feature = "influxdb")]
+    pub influxdb: Option<InfluxDbConfig>,
+    #[cfg(feature = "prometheus")]
+    pub prometheus: Option<PrometheusConfig>,
     
     // Metrics
     pub metrics: MetricsConfig,
+
+    // Server
+    pub server: ServerConfig,
+
+    // Vector API
+    pub vector_api: Option<VectorApiConfig>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ServerConfig {
+    pub host: String,
+    pub port: u16,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -61,6 +77,27 @@ pub struct MetricsConfig {
     pub host: String,
     pub port: u16,
     pub path: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct InfluxDbConfig {
+    pub enabled: bool,
+    pub host: String,
+    pub port: u16,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct PrometheusConfig {
+    pub enabled: bool,
+    pub host: String,
+    pub port: u16,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct VectorApiConfig {
+    pub enabled: bool,
+    pub host: String,
+    pub port: u16,
 }
 
 impl Config {

@@ -2,6 +2,7 @@ use prometheus::{Registry, Counter, Histogram, register_counter, register_histog
 use warp::Filter;
 use std::net::SocketAddr;
 
+lazy_static::lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
     
     pub static ref CONNECTIONS_TOTAL: Counter = register_counter!(

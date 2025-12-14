@@ -99,7 +99,7 @@ impl MysqlTranslator {
                     Err(ProtocolError::Translator("Invalid number format".into()))
                 }
             },
-            SqlValue::SingleQuotedString(s) => Ok(Expr::Literal(Value::String(s))),
+            SqlValue::SingleQuotedString(s) => Ok(Expr::Literal(Value::Text(s))),
             SqlValue::Boolean(b) => Ok(Expr::Literal(Value::Bool(b))),
             _ => Err(ProtocolError::Translator("Unsupported value type".into())),
         }

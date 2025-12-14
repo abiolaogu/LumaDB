@@ -1,83 +1,101 @@
+
 use crate::config::Config;
 use crate::metrics;
 use tokio::signal;
-
 use std::sync::Arc;
-use tokio::sync::Semaphore;
+use warp::Filter;
 
 pub async fn run(config: Config) -> Result<(), anyhow::Error> {
-    // Start metrics
+    // Start Metrics
     if config.metrics.enabled {
         let conf = config.metrics.clone();
         tokio::spawn(async move {
             metrics::start_metrics_server(conf.host, conf.port).await;
         });
-    let manager = crate::connection::ConnectionManager::new(&config);
+    }
 
-    // Start Adapters
-    #[cfg(feature = "postgres")]
-    if let Some(conf) = &config.postgres {
-        if conf.enabled {
-            println!("Starting PostgreSQL adapter on {}:{}", conf.host, conf.port);
-            
-            let pg_conf = luma_postgres::PostgresConfig {
-                enabled: conf.enabled,
-                host: conf.host.clone(),
-                port: conf.port,
-                max_connections: conf.max_connections,
-                ssl_mode: "prefer".to_string(), 
-            };
-            
-            // We need to pass the raw semaphore to the existing adapter run function because it expects Arc<Semaphore>.
-            // Since ConnectionManager wraps it, we might need to expose it or refactor the adapter to take a "PermitAcquirer".
-            // For now, let's just grab the semaphore from the manager if possible, OR refactor connection manager.
-            // Actually simplest is: ConnectionManager logic is nice, but `luma-postgres` `run` expects `Arc<Semaphore>`.
-            // Let's expose inner semaphore from manager for now to satisfy the interface we just built.
-            // Or better: Let's refactor luma-postgres to NOT take a semaphore, but just run.
-            // Wait, the requirement was "Implement ConnectionManager in luma-server". 
-            // So `luma-server` should handle the accept loop?
-            // `luma_postgres::run` implementation I wrote *contains* the accept loop.
-            // So `luma_postgres::run` NEEDS the semaphore.
-            
-            // Let's assume ConnectionManager can give us the Arc<Semaphore>.
-            // I'll update ConnectionManager to have `get_semaphore`.
-            if let Some(sem) = manager.get_semaphore("postgres") {
-                 tokio::spawn(async move {
-                    if let Err(e) = luma_postgres::run(pg_conf, sem).await {
-                         eprintln!("Postgres server failed: {}", e);
-                    }
-                });
-            }
+    // Initialize Core Engine
+    println!("Initializing LumaDB v3.0 Core Engine...");
+    let storage_path = std::path::PathBuf::from("./data");
+    let storage = std::sync::Arc::new(luma_protocol_core::storage::tiering::MultiTierStorage::new(storage_path).await);
+    let query_executor = std::sync::Arc::new(luma_protocol_core::query::executor::QueryExecutor::new(storage.clone()));
+
+    // Define HTTP Routes
+    let health_route = warp::path("health").map(|| "OK");
+    let routes = health_route.with(warp::trace::request());
+
+    // Start PostgreSQL Protocol Server (Port 5432)
+    let pg_executor = query_executor.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::protocols::postgres::run(5432, pg_executor).await {
+            eprintln!("PostgreSQL Server failed: {}", e);
         }
-    }
+    });
 
-    #[cfg(feature = "mysql")]
-    if let Some(conf) = &config.mysql {
-        if conf.enabled {
-            println!("Starting MySQL adapter on {}:{}", conf.host, conf.port);
+    // Start Prometheus Protocol Server (Port 9090)
+    let prom_executor = query_executor.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::protocols::prometheus::run(9090, prom_executor).await {
+            eprintln!("Prometheus Server failed: {}", e);
         }
-    }
+    });
+
+    // Start OTLP Protocol Server (Port 4317)
+    let otlp_executor = query_executor.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::protocols::otlp::run(4317, otlp_executor).await {
+            eprintln!("OTLP Server failed: {}", e);
+        }
+    });
+
+    // Start Built-in Prometheus Scraper (Pull Mode)
+    // TODO: Load config from file
+    use luma_protocol_core::ingestion::prometheus::{PrometheusScraper, ScraperConfig};
+    use std::time::Duration;
+    let scraper_config = ScraperConfig {
+        global_interval: Duration::from_secs(15),
+        global_timeout: Duration::from_secs(10),
+        jobs: vec![], // Add jobs here via config
+    };
+    let scraper = PrometheusScraper::new(scraper_config, storage.metrics.clone());
+    tokio::spawn(async move {
+        scraper.start().await;
+    });
+
+    // Start gRPC Service (Internal)
+    let grpc_addr = "[::1]:50051".parse()?;
     
-    #[cfg(feature = "cassandra")]
-    if let Some(conf) = &config.cassandra {
-         if conf.enabled {
-             println!("Starting Cassandra adapter on {}:{}", conf.host, conf.port);
-         }
-    }
+    // Use correct type from luma-core
+    use luma_protocol_core::luma::v3::query_service_server::QueryServiceServer;
     
-    #[cfg(feature = "mongodb")]
-    if let Some(conf) = &config.mongodb {
-         if conf.enabled {
-             println!("Starting MongoDB adapter on {}:{}", conf.host, conf.port);
-         }
+    let grpc_service = QueryServiceServer::new(crate::grpc::GrpcQueryService::new(query_executor.clone()));
+    
+    println!("LumaDB Server starting...");
+    println!("  - HTTP: http://127.0.0.1:{}", config.server.port);
+    println!("  - gRPC: {}", grpc_addr);
+    println!("  - PostgreSQL: 0.0.0.0:5432");
+    println!("  - Prometheus: 0.0.0.0:9090");
+    println!("  - OTLP: 0.0.0.0:4317");
+
+    let grpc_server = tonic::transport::Server::builder()
+        .add_service(grpc_service)
+        .serve(grpc_addr);
+
+    // Start HTTP Server
+    let http_server = warp::serve(routes).run(([127, 0, 0, 1], config.server.port));
+
+    // Run concurrently
+    let (_, grpc_res) = tokio::join!(http_server, grpc_server);
+
+    if let Err(e) = grpc_res {
+        eprintln!("gRPC exited with error: {}", e);
     }
 
+    // Wait for shutdown
     match signal::ctrl_c().await {
-        Ok(()) => {},
-        Err(err) => {
-            eprintln!("Unable to listen for shutdown signal: {}", err);
-        },
+        Ok(()) => println!("Shutdown signal received"),
+        Err(err) => eprintln!("Signal error: {}", err),
     }
-    println!("Shutting down LumaDB server");
+
     Ok(())
 }

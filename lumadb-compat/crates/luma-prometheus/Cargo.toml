@@ -1,0 +1,19 @@
+[package]
+name = "luma-prometheus"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+bytes = { workspace = true }
+prost = "0.12"
+snap = "1"
+serde = { workspace = true }
+luma-protocol-core = { path = "../luma-core" }
+
+[build-dependencies]
+prost-build = "0.12"
+tonic-build = "0.10"

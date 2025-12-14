@@ -1,55 +1,137 @@
-# Hardware Requirements for LumaDB v2.7.0
+# LumaDB Hardware Requirements
 
-This document outlines the recommended hardware specifications for running LumaDB in various environments.
+## Version 3.0.0 | December 2024
 
-## 1. Development & Testing (Minimum)
-Suitable for local development, CI/CD pipelines, and small functional tests.
+---
 
-- **CPU**: 2 vCPUs (x86_64 or ARM64)
-- **RAM**: 4 GB
-- **Storage**: 10 GB SSD
-- **Network**: Standard 1Gbps Ethernet
-- **OS**: Linux (Kernel 6.x+), macOS 14+, or Windows (WSL2)
+## 1. Minimum Requirements
 
-## 2. Production (Recommended)
-Suitable for high-performance workloads, moderate datasets, and production traffic.
+### Development/Testing
+| Component | Requirement |
+|-----------|-------------|
+| **CPU** | 2 cores (x86_64 or ARM64) |
+| **RAM** | 4 GB |
+| **Storage** | 10 GB SSD |
+| **OS** | Linux, macOS, Windows (WSL2) |
+| **Rust** | 1.75+ (build only) |
 
-- **CPU**: 4+ vCPUs (High Frequency, e.g., AWS c6i/c7g)
-- **RAM**: 16 GB+ (LumaDB uses ~50% for Block Cache, ~25% for OS Page Cache)
-- **Storage**: 100 GB+ NVMe SSD
-    - **IOPS**: > 3,000 Provisioned IOPS
-    - **Throughput**: > 125 MB/s
-- **Network**: 10Gbps+ (Low Latency)
-- **Cluster Size**: Minimum 3 nodes for Raft consensus high availability.
+### Binary Size
+- Release binary: **7.7 MB**
+- Docker image: **~50 MB** (Alpine-based)
 
-## 3. Extreme Performance (Hyperscale)
-Suitable for massive datasets (TB+), real-time analytics, and high-throughput ingestion.
+---
 
-- **CPU**: 16+ vCPUs (Dedicated Cores)
-- **RAM**: 64 GB+ (ECC Recommended)
-- **Storage**: 1 TB+ NVMe SSD (RAID 0 or 10)
-    - **IOPS**: > 10,000 IOPS
-    - **File System**: XFS or EXT4 with `noatime`
-- **Network**: 25Gbps+ (Placement Group enabled)
-- **Topology**: Multi-AZ or Multi-Region deployment.
+## 2. Recommended Production
 
-## 4. Specific Component Requirements
+### Small Deployment (< 100K series)
+| Component | Requirement |
+|-----------|-------------|
+| **CPU** | 4 cores |
+| **RAM** | 16 GB |
+| **Storage** | 100 GB NVMe SSD |
+| **Network** | 1 Gbps |
 
-### Rust Core Engine
-- **Memory**: Heavily relies on RAM for Memtables and Block Cache. Configurable via `luma.toml`.
-- **Disk**: Requires fast random I/O for LSM-tree compaction. Avoid HDD / Rotating Rust.
-- **CPU**: Benefits from AVX-512 (x86) or NEON (ARM) for SIMD aggregations.
+### Medium Deployment (100K - 1M series)
+| Component | Requirement |
+|-----------|-------------|
+| **CPU** | 8 cores |
+| **RAM** | 32 GB |
+| **Storage** | 500 GB NVMe SSD |
+| **Network** | 10 Gbps |
 
-### Go Cluster Coordinator
-- **CPU**: scales linearly with thread count (`GOMAXPROCS`).
-- **Network**: Sensitive to latency for Raft leader election (keep RTT < 50ms).
+### Large Deployment (1M+ series)
+| Component | Requirement |
+|-----------|-------------|
+| **CPU** | 16+ cores |
+| **RAM** | 64+ GB |
+| **Storage** | 1+ TB NVMe SSD |
+| **Network** | 25 Gbps |
 
-### Python AI Service
-- **GPU**: Optional but recommended for Vector Embeddings (NVIDIA T4/A10G).
-- **RAM**: Requires ~2GB extra per loaded ML model (e.g., BERT, ResNet).
+---
 
-## 5. Deployment Checklist
-- [ ] **Disable Swap**: Prevent latency spikes during memory pressure.
-- [ ] **NTP Sync**: Ensure clocks are synchronized for Raft consistency.
-- [ ] **File Descriptors**: Increase `ulimit -n` to 65535+.
-- [ ] **TCP Keepalive**: Tune kernel parameters for long-lived connections.
+## 3. Storage Tiers
+
+| Tier | Technology | Latency | Cost |
+|------|------------|---------|------|
+| **Hot** | RAM (DashMap) | ~100ns | $$$ |
+| **Warm** | NVMe SSD | ~1ms | $$ |
+| **Cold** | HDD/Object Store | ~10ms | $ |
+
+### Storage Estimation
+
+```
+Time-series formula:
+  Storage = series_count × samples_per_day × bytes_per_sample × retention_days
+
+Example (100K series, 1 sample/15s, 30 days):
+  100,000 × 5,760 × 0.17 bytes × 30 = ~3 GB (with Gorilla compression)
+```
+
+---
+
+## 4. Network Requirements
+
+### Ports
+
+| Port | Protocol | Service |
+|------|----------|---------|
+| 5432 | TCP | PostgreSQL |
+| 9090 | TCP | Prometheus API |
+| 4317 | TCP | OTLP gRPC |
+| 8080 | TCP | HTTP API |
+| 50051 | TCP | Internal gRPC |
+| 9091 | TCP | Metrics Endpoint |
+
+### Bandwidth Estimation
+
+| Workload | Ingestion Rate | Network |
+|----------|----------------|---------|
+| Light | 10K samples/sec | 10 Mbps |
+| Medium | 100K samples/sec | 100 Mbps |
+| Heavy | 1M samples/sec | 1 Gbps |
+
+---
+
+## 5. Cloud Recommendations
+
+### AWS
+| Tier | Instance | Notes |
+|------|----------|-------|
+| Dev | t3.medium | 2 vCPU, 4 GB |
+| Small | m5.xlarge | 4 vCPU, 16 GB |
+| Medium | m5.2xlarge | 8 vCPU, 32 GB |
+| Large | m5.4xlarge | 16 vCPU, 64 GB |
+
+### GCP
+| Tier | Instance | Notes |
+|------|----------|-------|
+| Dev | e2-medium | 2 vCPU, 4 GB |
+| Small | n2-standard-4 | 4 vCPU, 16 GB |
+| Medium | n2-standard-8 | 8 vCPU, 32 GB |
+| Large | n2-standard-16 | 16 vCPU, 64 GB |
+
+### Azure
+| Tier | Instance | Notes |
+|------|----------|-------|
+| Dev | Standard_D2s_v3 | 2 vCPU, 8 GB |
+| Small | Standard_D4s_v3 | 4 vCPU, 16 GB |
+| Medium | Standard_D8s_v3 | 8 vCPU, 32 GB |
+| Large | Standard_D16s_v3 | 16 vCPU, 64 GB |
+
+---
+
+## 6. Kubernetes Resources
+
+```yaml
+resources:
+  requests:
+    memory: "2Gi"
+    cpu: "1000m"
+  limits:
+    memory: "8Gi"
+    cpu: "4000m"
+```
+
+---
+
+*Last Updated: December 2024*

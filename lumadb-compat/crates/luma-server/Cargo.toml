@@ -5,27 +5,41 @@ edition = "2021"
 
 [features]
 default = ["full"]
-full = ["postgres", "mysql", "cassandra", "mongodb"]
+full = ["influxdb", "prometheus"]
+# full = ["postgres", "mysql", "cassandra", "mongodb", "influxdb", "prometheus"]
 postgres = ["dep:luma-postgres"]
 mysql = ["dep:luma-mysql"]
+influxdb = ["dep:luma-influxdb"]
+prometheus = ["dep:luma-prometheus"]
 cassandra = ["dep:luma-cassandra"]
 mongodb = ["dep:luma-mongodb"]
 
 [dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+warp = { workspace = true }
+bytes = "1.0"
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-serde = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry-proto = { workspace = true }
+hex = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 toml = { workspace = true }
-serde_json = { workspace = true }
-clap = { workspace = true }
 prometheus = { workspace = true }
-anyhow = { workspace = true }
+tonic = { workspace = true, features = ["transport"] }
+prost = "0.11"
+prost-types = "0.11"
+tokio-stream = "0.1"
 lazy_static = "1.4"
-warp = "0.3"
-
-luma-protocol-core = { workspace = true }
-luma-postgres = { workspace = true, optional = true }
-luma-mysql = { workspace = true, optional = true }
-luma-cassandra = { workspace = true, optional = true }
-luma-mongodb = { workspace = true, optional = true }
+rand = { workspace = true }
+md5 = { workspace = true }
+luma-protocol-core = { path = "../luma-core" }
+luma-postgres = { path = "../luma-postgres", optional = true }
+luma-mysql = { path = "../luma-mysql", optional = true }
+luma-cassandra = { path = "../luma-cassandra", optional = true }
+luma-mongodb = { path = "../luma-mongodb", optional = true }
+luma-influxdb = { path = "../luma-influxdb", optional = true }
+luma-prometheus = { path = "../luma-prometheus", optional = true }

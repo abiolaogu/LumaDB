@@ -21,6 +21,7 @@ pub trait QueryProcessor: Send + Sync {
     async fn process(&self, request: QueryRequest) -> Result<QueryResult>;
 }
 
+#[derive(Default)]
 pub struct MockQueryProcessor;
 
 #[async_trait]

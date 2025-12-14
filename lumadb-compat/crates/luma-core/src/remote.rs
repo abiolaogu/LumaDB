@@ -3,19 +3,19 @@ use async_trait::async_trait;
 use tonic::transport::Channel;
 
 pub mod pb {
-    tonic::include_proto!("luma.v1");
+    tonic::include_proto!("luma.v3");
 }
 
-use pb::luma_service_client::LumaServiceClient;
+use pb::query_service_client::QueryServiceClient;
 use pb::{QueryRequest as PbQueryRequest};
 
 pub struct RemoteQueryProcessor {
-    client: LumaServiceClient<Channel>,
+    client: QueryServiceClient<Channel>,
 }
 
 impl RemoteQueryProcessor {
     pub async fn connect(addr: String) -> Result<Self> {
-        let client = LumaServiceClient::connect(addr)
+        let client = QueryServiceClient::connect(addr)
             .await
             .map_err(|e| ProtocolError::Io(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, e)))?;
         
@@ -29,39 +29,32 @@ impl QueryProcessor for RemoteQueryProcessor {
         let mut client = self.client.clone();
 
         // Convert request.params to JSON bytes for payload
-        let payload = serde_json::to_vec(&request.params)
-            .map_err(|e| ProtocolError::TypeConversion(e.to_string()))?;
+        // Payload removed in v3
 
         let req = tonic::Request::new(PbQueryRequest {
-            collection: "".to_string(), // TODO: Extract from query or request?
             query: request.query,
-            dialect: "luma-ir".to_string(), // Or "sql-pg" etc depending on source
-            payload,
+            format: "luma-ir".to_string(),
         });
 
         let response = client.execute(req).await
             .map_err(|e| ProtocolError::Internal(format!("gRPC Error: {}", e)))?
             .into_inner();
 
-        if !response.success {
-            return Err(ProtocolError::Internal(response.error));
-        }
-
-        // Parse result
-        // Assuming result is JSON array of rows for now
-        if response.content_type == "json" {
-             let rows: Vec<Vec<Value>> = serde_json::from_slice(&response.result)
-                .map_err(|e| ProtocolError::TypeConversion(format!("Failed to parse result: {}", e)))?;
-             
-             Ok(QueryResult {
-                 rows,
-                 row_count: response.rows_affected as usize,
-             })
-        } else {
-             Ok(QueryResult {
-                 rows: vec![],
-                 row_count: 0,
-             })
+        match response.result {
+            Some(pb::query_response::Result::Vector(v)) => {
+                let rows = v.matches.iter().map(|m| {
+                     vec![Value::Int64(m.id as i64), Value::Float64(m.score as f64)]
+                }).collect();
+                Ok(QueryResult { rows, row_count: v.matches.len() })
+            },
+            Some(pb::query_response::Result::Scalar(s)) => {
+                let rows = vec![vec![Value::Float64(s.value), Value::Text(s.label)]];
+                Ok(QueryResult { rows, row_count: 1 })
+            },
+            Some(pb::query_response::Result::Error(e)) => {
+                 Err(ProtocolError::Internal(e.message))
+            },
+            None => Ok(QueryResult { rows: vec![], row_count: 0 }),
         }
     }
 }

@@ -1,77 +1,163 @@
 # LumaDB Video Training Scripts
 
-## Series 1: Getting Started
-
-### Video 1.1: What is LumaDB?
-**Duration:** 3 mins
-**Visuals:** Animated architecture diagram, logo, performance charts.
-
-**Script:**
-> **[Intro Music]**
-> **Host:** "Hello and welcome! Today we're introducing LumaDB, the database that's changing the way we think about storage and AI."
-> **[Cut to Architecture Diagram]**
-> **Host:** "Traditional databases force you to choose: speed OR scale. Analytics OR Transactions. LumaDB gives you both."
-> "At its core is a Rust-based, high-performance engine that utilizes a generic 'Hybrid Memory Architecture'. This means your hot data lives in RAM for speed, while warm data automatically moves to SSDs to save cost."
-> **[Cut to AI Feature Demo]**
-> "But that's not all. LumaDB is AI-Native. You can store vector embeddings right alongside your JSON documents and query them with natural language."
-> **[Outro]** "In the next video, we'll install LumaDB in less than 5 minutes. Stay tuned."
-
-### Video 1.2: Installation & Setup
-**Duration:** 5 mins
-**Visuals:** Screencast of terminal/IDE.
-
-**Script:**
-> **Host:** "Let's get LumaDB running. The easiest way is Docker."
-> **[Show Terminal]**
-> "Type `docker run -p 8080:8080 lumadb/server`. And... BOOM. We are live."
-> "Let's verify it with curl. `curl localhost:8080/version`. There it is: Version 2.0.0."
-> "Now, let's look at the configuration file `luma.toml`..."
+## Version 3.0.0 | December 2024
 
 ---
 
-## Series 2: Advanced Features
+## Video 1: Introduction to LumaDB (5 min)
 
-### Video 2.1: Storage Tiering Implementation
-**Duration:** 8 mins
-**Visuals:** Diagram of data movement, Dashboard showing I/O stats.
+### Script
 
-**Script:**
-> **Host:** "Storing petabytes in RAM is expensive. LumaDB solves this with Tiering."
-> "Open `luma.toml`. Look at the `[tiering]` section."
-> "We can set `age_threshold = 3600`. This tells the engine: if data hasn't been touched in an hour, move it to the 'Warm' SSD tier."
-> "For the Cold tier, we use Erasure Coding. It's like RAID-6 but across the network. It saves you 50% storage overhead compared to standard 3-copy replication."
-> **[Show Diagram of EC]**
-> "Data is split into shards + parity chunks. If a drive fails, we rebuild mathmatically."
+**[0:00-0:30] Hook**
+> "What if you could replace Prometheus, Elasticsearch, and PostgreSQL with a single 7.7 MB binary? That's LumaDB."
 
-### Video 2.2: AI & Vector Search
-**Duration:** 6 mins
-**Visuals:** Code editor, Python script.
+**[0:30-1:30] Problem Statement**
+> - Managing multiple databases is complex
+> - Different query languages, protocols, storage engines
+> - High operational overhead
 
-**Script:**
-> **Host:** "Forget managing a separate Vector DB like Pinecone or Milvus. LumaDB does it natively."
-> "Let's insert a product with an embedding."
-> **[Typing Code]**
-> "See here? `db.insert('products', { name: 'Shoe', embedding: [...] })`."
-> "Now let's search: `db.ai.search('products', vector, top_k=5)`."
-> "It uses the internal FAISS index to find neighbors instantly."
+**[1:30-3:00] Solution Overview**
+> - Single binary, multi-protocol
+> - PostgreSQL, Prometheus, OTLP compatibility
+> - Unified storage with multi-tier architecture
 
-## Series 3: Platform Mastery
+**[3:00-4:30] Demo**
+> - Start LumaDB: `./luma-server`
+> - Connect with psql
+> - Show Prometheus metrics
+> - Query logs via SQL
 
-### Video 3.1: Securing your Cluster
-**Duration:** 5 mins
-**Visuals:** Postman/Curl demo.
+**[4:30-5:00] CTA**
+> "Get started at github.com/lumadb"
 
-**Script:**
-> **Host:** "Security is paramount. LumaDB v2.1 introduces built-in JWT Authentication."
-> "First, we login: `POST /api/auth/login`. We get back a token."
-> "Now, try to access `/api/v1/stats` without it... 401 Unauthorized."
-> "Add the header `Authorization: Bearer <token>`... and we're in."
+---
 
-### Video 3.2: The Admin Dashboard
-**Duration:** 4 mins
-**Visuals:** Dashboard Walkthrough.
+## Video 2: Installation & Setup (8 min)
 
-**Script:**
-> **Host:** "Meet your new command center. The Admin Dashboard."
-> "Here you can see real-time stats: Operations Per Second, Active Nodes, and Storage usage."
-> "Navigate to 'Data Explorer' to view your collections without writing a single line of code."
+### Script
+
+**[0:00-2:00] Binary Installation**
+```bash
+curl -LO https://github.com/lumadb/releases/latest/luma-server
+chmod +x luma-server
+./luma-server --config config.toml
+```
+
+**[2:00-4:00] Docker Deployment**
+```bash
+docker run -p 5432:5432 -p 9090:9090 lumadb/lumadb:latest
+```
+
+**[4:00-6:00] Configuration**
+- Walk through config.toml sections
+- Explain port assignments
+- Show data_dir setup
+
+**[6:00-8:00] Verification**
+```bash
+psql -h localhost -p 5432 -U lumadb
+curl http://localhost:9091/metrics
+```
+
+---
+
+## Video 3: Connecting Applications (10 min)
+
+### Script
+
+**[0:00-3:00] PostgreSQL Driver**
+- Python: psycopg2
+- Node.js: pg
+- Go: pgx
+
+**[3:00-6:00] OpenTelemetry**
+- Configure OTLP exporter
+- Point to localhost:4317
+- Verify traces in LumaDB
+
+**[6:00-10:00] Prometheus Integration**
+- Add LumaDB as remote_write target
+- Configure scrape targets
+- Build Grafana dashboard
+
+---
+
+## Video 4: Security Best Practices (6 min)
+
+### Script
+
+**[0:00-2:00] Authentication**
+- MD5 password verification
+- Change default credentials
+- Connection logging
+
+**[2:00-4:00] Rate Limiting**
+- Token bucket algorithm
+- 100 requests/min default
+- Ban duration configuration
+
+**[4:00-6:00] Network Security**
+- Firewall configuration
+- Port exposure guidelines
+- Future: TLS support
+
+---
+
+## Video 5: Monitoring LumaDB (7 min)
+
+### Script
+
+**[0:00-2:00] Metrics Endpoint**
+- /metrics path
+- Key metrics to monitor
+- Prometheus scrape config
+
+**[2:00-5:00] Grafana Dashboard**
+- Import pre-built dashboard
+- Active connections panel
+- Query latency histogram
+- Ingestion rate
+
+**[5:00-7:00] Alerting**
+- High connection count
+- Rate limit exceeded
+- WAL lag
+
+---
+
+## Video 6: Troubleshooting (8 min)
+
+### Script
+
+**[0:00-2:00] Connection Issues**
+- Check port binding
+- Verify firewall
+- Test with telnet
+
+**[2:00-4:00] Authentication Failures**
+- Verify credentials
+- Check client configuration
+- Review logs
+
+**[4:00-6:00] Performance Issues**
+- Enable debug logging
+- Check tier distribution
+- Monitor memory
+
+**[6:00-8:00] Recovery**
+- WAL replay on restart
+- Backup procedures
+- Disaster recovery
+
+---
+
+## Production Notes
+
+- **Resolution:** 1920x1080
+- **Audio:** Professional microphone, quiet environment
+- **Screen Recording:** Terminal and browser side-by-side
+- **Editing:** Cut pauses, add annotations
+
+---
+
+*Last Updated: December 2024*

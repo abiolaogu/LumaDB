@@ -1,0 +1,42 @@
+
+syntax = "proto3";
+
+package luma.v3;
+
+service QueryService {
+  rpc Execute (QueryRequest) returns (QueryResponse);
+  rpc StreamExecute (QueryRequest) returns (stream QueryResponse);
+}
+
+message QueryRequest {
+  string query = 1;
+  string format = 2; // "lql", "promql", "sql"
+}
+
+message QueryResponse {
+  oneof result {
+    VectorResult vector = 1;
+    ScalarResult scalar = 2;
+    ErrorResult error = 3;
+  }
+}
+
+message VectorResult {
+  repeated float values = 1;
+  repeated VectorMatch matches = 2;
+}
+
+message VectorMatch {
+  uint64 id = 1;
+  float score = 2;
+}
+
+message ScalarResult {
+  double value = 1;
+  string label = 2;
+}
+
+message ErrorResult {
+  string message = 1;
+  int32 code = 2;
+}

@@ -1,127 +1,167 @@
 # LumaDB User Manual
 
-## 1. Introduction
+## Version 3.0.0 | December 2024
 
-Welcome to LumaDB! This manual will guide you through installing, configuring, and building applications with LumaDB.
+---
 
-## 2. Installation
+## 1. Getting Started
 
-### 2.1 Docker (Recommended)
-The easiest way to run LumaDB is via Docker.
+### Installation
 
+#### Binary Release
 ```bash
-docker run -d -p 8080:8080 -p 10000:10000 --name lumadb lumadb/server:latest
+# Download release
+curl -LO https://github.com/lumadb/releases/latest/luma-server
+
+# Make executable
+chmod +x luma-server
+
+# Run
+./luma-server --config config.toml
 ```
 
-### 2.2 From Source
-Requirements: Rust 1.70+, Go 1.21+.
-
+#### Docker
 ```bash
-git clone https://github.com/lumadb/luma.git
-cd luma
-./build.sh
-./bin/luma-server --config luma.toml
+docker run -p 5432:5432 -p 9090:9090 -p 4317:4317 lumadb/lumadb:latest
 ```
 
-## 3. Configuration (`luma.toml`)
+#### Build from Source
+```bash
+cd lumadb-compat
+./release.sh
+# Binary: target/release/luma-server
+```
 
-LumaDB is highly configurable. The main configuration file `luma.toml` is found in the root directory.
+---
 
-### 3.1 Tiering Configuration
-Configure how data moves between RAM, SSD, and HDD.
+## 2. Configuration
 
+### Example config.toml
 ```toml
-[tiering]
-# Enable multi-tier storage
+[general]
+data_dir = "./data"
+log_level = "info"
+
+[server]
+host = "127.0.0.1"
+port = 8080
+
+[metrics]
 enabled = true
+port = 9091
 
-[tiering.warm_policy]
-# Move to SSD after 1 hour of inactivity
-age_threshold_seconds = 3600
-# Usage Erasure Coding for efficiency
-strategy = { type = "ErasureCoding", data_shards = 6, parity_shards = 3 }
+[postgres]
+enabled = true
+port = 5432
+max_connections = 100
 ```
 
-## 4. Authentication & Security
-LumaDB is secure by default (v2.1+).
+---
 
-### 4.1 Login
-Obtain a token using the credentials (default: `admin` / `password`).
+## 3. Connecting
+
+### PostgreSQL Client
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
-  -d '{"username": "admin", "password": "password"}'
-# Returns: {"token": "eyJhbGci..."}
+psql -h localhost -p 5432 -U lumadb -d default
+Password: lumadb
 ```
 
-### 4.2 Using APIs
-Pass the token in the Authorization header:
-```bash
-curl -H "Authorization: Bearer <TOKEN>" http://localhost:8080/api/v1/users
-```
+### Grafana
+1. Add Data Source → Prometheus
+2. URL: `http://lumadb:9090`
+3. Save & Test
 
-## 5. Kubernetes Operator
-For production on Kubernetes, use the LumaDB Operator.
-
-### 6.1 Installation
-```bash
-kubectl apply -f https://github.com/lumadb/operator/releases/latest/download/install.yaml
-```
-
-### 6.2 Creating a Cluster
+### OpenTelemetry Collector
 ```yaml
-apiVersion: lumadb.com/v1alpha1
-kind: LumaCluster
-metadata:
-  name: my-cluster
-spec:
-  replicas: 3
-  version: "v2.4.0"
-  storage:
-    size: "10Gi"
+exporters:
+  otlp:
+    endpoint: "lumadb:4317"
+    tls:
+      insecure: true
 ```
 
-## 5. Using the Database
+---
+
+## 4. Querying Data
+
+### SQL (via PostgreSQL)
+```sql
+SELECT * FROM metrics WHERE name = 'http_requests_total';
 ```
 
-### 4.1 Connecting
-LumaDB exposes an HTTP API and a gRPC interface.
-
-**Using curl:**
+### PromQL (via Prometheus API)
 ```bash
-curl -X POST http://localhost:8080/query \
-  -H "Content-Type: application/json" \
-  -d '{"type": "LQL", "query": "INSERT INTO users (name) VALUES (\"Alice\")"}'
+curl 'http://localhost:9090/api/v1/query?query=http_requests_total'
 ```
 
-**Using TypeScript SDK:**
-```typescript
-import { Database } from 'lumadb';
-const db = new Database('http://localhost:8080');
-await db.lql("SELECT * FROM users");
+---
+
+## 5. Ingesting Data
+
+### Prometheus Scraping
+Configure targets in LumaDB to scrape Prometheus endpoints.
+
+### OTLP Push
+Send OpenTelemetry data to `grpc://localhost:4317`
+
+### Direct API
+```rust
+// Rust API
+storage.metrics.insert_sample("cpu_usage", labels, timestamp, 85.5).await?;
 ```
 
-### 4.2 Query Languages
-LumaDB supports three query languages:
+---
 
-1. **LQL (Luma Query Language)**: SQL-compatible.
-   `SELECT * FROM users WHERE age > 21`
+## 6. Monitoring LumaDB
 
-2. **NQL (Natural Query Language)**: AI-powered.
-   `find users older than 21`
+### Health Check
+```bash
+curl http://localhost:8080/health
+```
 
-3. **JQL (JSON Query Language)**: MongoDB-style.
-   `{ "find": "users", "filter": { "age": { "$gt": 21 } } }`
+### Metrics
+```bash
+curl http://localhost:9091/metrics
+```
 
-## Version 2.7.0 Release Notes
-- **Native Storage**: PostgreSQL dependency removed.
-- **Webhooks**: New Trigger API for event-driven workflows.
-- **Performance**: Rust-based Hash Joins and SIMD Aggregations.
-- **Security**: Granular RBAC and FFI memory safety improvements.
+Key metrics:
+- `lumadb_active_connections` - Current connections per protocol
+- `lumadb_query_duration_seconds` - Query latency histogram
+- `lumadb_ingestion_rate` - Samples ingested per second
 
-## 5. Troubleshooting
+---
 
-**Common Issues:**
-- **"Connection Refused"**: Ensure the server is running and port 8080 is open.
-- **"Storage Full"**: Check `luma.toml` limits or add more storage nodes.
+## 7. Backup & Recovery
 
-For more help, visit [docs.lumadb.com](https://docs.lumadb.com).
+### WAL Files
+Located in `{data_dir}/wal.log`
+
+### Recovery
+On restart, LumaDB automatically replays WAL entries:
+```
+INFO WAL recovery: recovered 1234 segments
+```
+
+---
+
+## 8. Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Connection refused on 5432 | Check `postgres.enabled = true` in config |
+| Authentication failed | Verify username/password (default: lumadb/lumadb) |
+| Rate limit exceeded | Wait 5 minutes or increase `max_requests` |
+| High memory usage | Reduce `max_connections`, increase shard count |
+
+---
+
+## 9. Security Best Practices
+
+1. **Change default password** in `AuthConfig`
+2. **Enable TLS** for production (planned)
+3. **Use firewall** to restrict port access
+4. **Monitor rate limiting** logs for abuse
+
+---
+
+*Last Updated: December 2024*

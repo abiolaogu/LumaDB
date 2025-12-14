@@ -16,10 +16,32 @@ serde_json = { workspace = true }
 bson = { workspace = true }
 sqlparser = { workspace = true }
 futures = "0.3"
-tonic = "0.10"
-prost = "0.12"
-prost-types = "0.12"
+tonic = { workspace = true }
+prost = { workspace = true }
+prost-types = "0.11"
 tokio-stream = "0.1"
+nom = { workspace = true }
+dashmap = { workspace = true }
+roaring = { workspace = true }
+fst = { workspace = true }
+hyperloglog = { workspace = true }
+tdigest = { workspace = true }
+reqwest = { workspace = true }
+zstd = { workspace = true }
+opentelemetry-proto = { workspace = true }
+
+# Production Dependencies
+arrow = { version = "50.0", features = ["prettyprint"] }
+parquet = { version = "50.0", features = ["async"] }
+# aws-config = "1.1"
+# aws-sdk-s3 = "1.15" -- Replaced by Rust-MinIO
+
+
+
+
 
 [build-dependencies]
-tonic-build = "0.10"
+tonic-build = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.10"

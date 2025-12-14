@@ -1,60 +1,160 @@
 # LumaDB Training Manual
 
-## Course Overview
-This training program is designed to take you from a LumaDB novice to an expert administrator and developer.
-
-**Duration:** 2 Days (16 Hours)
-**Prerequisites:** Basic knowledge of databases (SQL) and Linux terminal.
+## Version 3.0.0 | December 2024
 
 ---
 
-## Module 1: Introduction to LumaDB (2 Hours)
-**Goal:** Understand the architecture and unique value proposition.
+## Part 1: Administrator Training
 
-- **1.1 The Evolution of Databases**: From RDBMS to NoSQL to NewSQL / AI-Native.
-- **1.2 LumaDB Architecture**:
-  - Hybrid Memory Tiering (RAM/SSD).
-  - Shard-per-Core Design.
-  - The Distributed Cluster (Raft).
-- **1.3 Lab 1**: Installing LumaDB using Docker.
+### 1.1 Installation & Setup (30 minutes)
 
-## Module 2: Developing with LumaDB (4 Hours)
-**Goal:** Learn how to build applications using LumaDB.
+**Objective:** Deploy LumaDB in development and production environments.
 
-- **2.1 The Unified Query Interface**: LQL, NQL, JQL.
-- **2.2 Data Modeling**: Schemaless vs. Schema-enforced collections.
-- **2.3 Using the SDKs**: TypeScript and Python examples.
-- **2.4 AI Integration**: Storing vectors and running semantic seach.
-- **2.5 Lab 2**: Building a simple "Product Catalog" API with semantic search.
+1. **Binary Installation**
+   ```bash
+   ./luma-server --config config.toml
+   ```
 
-## Module 3: Storage & Performance Tuning (4 Hours)
-**Goal:** Master the storage engine configuration.
+2. **Docker Deployment**
+   ```bash
+   docker run -p 5432:5432 -p 9090:9090 lumadb/lumadb:latest
+   ```
 
-- **3.1 Understanding LSM-Trees and Write Amplification**.
-- **3.2 Configuring Tiering Policies**:
-  - Defining Hot/Warm/Cold thresholds.
-  - Erasure Coding vs. Replication.
-- **3.3 Monitoring**: Understanding the Metrics API and Dashboards.
-- **3.4 Lab 3**: Simulating load and observing data migration to SSD.
+3. **Configuration Deep Dive**
+   - `data_dir`: Where WAL and segments are stored
+   - `log_level`: debug, info, warn, error
+   - Port configurations for each protocol
 
-## Module 4: Advanced Features (4 Hours)
-**Goal:** Leverage Kubernetes and Advanced Queries.
+### 1.2 Security Configuration (20 minutes)
 
-- **4.1 Kubernetes Operator**: Deploying and managing LumaClusters on K8s.
-- **4.2 Lab 4**: Deploying a cluster on Minikube.
+**Objective:** Secure a production deployment.
 
-## Module 5: Cluster Administration (4 Hours)
-**Goal:** Managing a production LumaDB cluster.
+1. **Change Default Credentials**
+   - Edit `AuthConfig` in source or use environment variables
+   - Username/password for PostgreSQL access
 
-- **4.1 Cluster Topology**: Joining nodes and rebalancing.
-- **4.2 Backup & Restore**: Snapshotting and Point-in-Time Recovery.
-- **4.3 Upgrades**: Rolling upgrades without downtime.
-- **4.4 Security**:
-  - **Authentication**: Generating JWT tokens via `/api/auth/login`.
-  - **Authorization**: Securing API endpoints with Middleware.
-  - **RBAC**: Managing user roles.
-- **4.5 Lab 4**: Setting up a 3-node HA cluster and simulating a node failure.
+2. **Rate Limiting**
+   - Default: 100 requests/minute per IP
+   - Ban duration: 5 minutes
+   - Monitor `lumadb_rate_limit_exceeded` metric
 
-## Module 5: Final Assessment (2 Hours)
-- **Exam**: 30 Multiple choice questions.
-- **Capstone Project**: Deploy a resilient cluster with a specific storage policy.
+3. **Network Security**
+   - Use firewall to restrict ports
+   - Enable TLS (when available)
+
+### 1.3 Monitoring & Alerting (20 minutes)
+
+**Objective:** Set up observability for LumaDB.
+
+1. **Metrics Endpoint**
+   ```bash
+   curl http://localhost:9091/metrics
+   ```
+
+2. **Key Metrics**
+   - `lumadb_active_connections{protocol="postgres"}`
+   - `lumadb_query_duration_seconds`
+   - `lumadb_wal_entries_total`
+
+3. **Grafana Dashboard**
+   - Import dashboard from `docs/grafana/lumadb-dashboard.json`
+
+---
+
+## Part 2: Developer Training
+
+### 2.1 Connecting Applications (30 minutes)
+
+**Objective:** Integrate LumaDB with your applications.
+
+1. **PostgreSQL Driver**
+   ```python
+   import psycopg2
+   conn = psycopg2.connect(
+       host="localhost", port=5432,
+       user="lumadb", password="lumadb"
+   )
+   ```
+
+2. **OpenTelemetry SDK**
+   ```python
+   from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+   exporter = OTLPMetricExporter(endpoint="localhost:4317", insecure=True)
+   ```
+
+3. **Prometheus Client**
+   ```bash
+   curl -X POST http://localhost:9090/api/v1/write -d @metrics.pb
+   ```
+
+### 2.2 Query Patterns (20 minutes)
+
+**Objective:** Write efficient queries.
+
+1. **Simple Queries**
+   ```sql
+   SELECT * FROM metrics LIMIT 100;
+   ```
+
+2. **Full-Text Search**
+   ```sql
+   SELECT * FROM logs WHERE text_search(message, 'error timeout');
+   ```
+
+3. **Vector Search**
+   ```sql
+   SELECT * FROM embeddings ORDER BY vector_distance(embedding, ?) LIMIT 10;
+   ```
+
+### 2.3 Best Practices (15 minutes)
+
+1. **Batch Ingestion** - Send data in batches of 1000+ samples
+2. **Label Cardinality** - Keep unique label combinations < 1M
+3. **Query Optimization** - Use time ranges to limit scan scope
+
+---
+
+## Part 3: SRE Training
+
+### 3.1 Capacity Planning (20 minutes)
+
+| Workload | Series | RAM | Storage |
+|----------|--------|-----|---------|
+| Small | 100K | 16 GB | 100 GB |
+| Medium | 1M | 32 GB | 500 GB |
+| Large | 10M | 64 GB | 2 TB |
+
+### 3.2 Disaster Recovery (20 minutes)
+
+1. **WAL Backup**
+   ```bash
+   cp data/wal.log /backup/wal-$(date +%Y%m%d).log
+   ```
+
+2. **Recovery**
+   - Stop LumaDB
+   - Restore WAL file
+   - Start LumaDB (automatic replay)
+
+### 3.3 Troubleshooting Guide (15 minutes)
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| Connection refused | Port not listening | Check config, restart |
+| Auth failed | Wrong credentials | Verify username/password |
+| High latency | Cold data access | Check tier usage |
+| OOM | Too many series | Increase RAM, reduce cardinality |
+
+---
+
+## Certification Quiz
+
+1. What port does the PostgreSQL protocol use by default?
+2. How does LumaDB authenticate PostgreSQL connections?
+3. What is the default rate limit per IP?
+4. Where is the WAL file stored?
+5. How do you connect Grafana to LumaDB?
+
+---
+
+*Last Updated: December 2024*

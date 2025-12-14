@@ -23,13 +23,27 @@ pub enum ProtocolError {
 }
 
 
-pub type Result<T> = std::result::Result<T, ProtocolError>;
-
 pub mod ir;
+pub mod indexing;
+pub mod compression;
+pub type Result<T> = std::result::Result<T, ProtocolError>;
 pub use ir::*;
+pub mod parsing;
+pub mod storage;
+pub mod query;
+pub mod vector;
+pub mod security;
+pub mod ai;
 pub mod processor;
 pub use processor::{QueryProcessor, MockQueryProcessor, QueryRequest, QueryResult};
 pub mod remote;
+pub mod ingestion; // Phase 15: Observability
+pub mod stream; // Stream Processing Engine (Phase 10)
+pub mod luma {
+    pub mod v3 {
+        tonic::include_proto!("luma.v3");
+    }
+}
 pub use remote::RemoteQueryProcessor;
 
 /// Trait for a protocol adapter (e.g., Postgres, MySQL)

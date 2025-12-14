@@ -1,0 +1,24 @@
+[general]
+data_dir = "./data"
+log_level = "info"
+
+[metrics]
+enabled = true
+host = "0.0.0.0"
+port = 9100
+path = "/metrics"
+
+[influxdb]
+enabled = true
+host = "0.0.0.0"
+port = 8086
+
+[prometheus]
+enabled = true
+host = "0.0.0.0"
+port = 9201 # Use 9201 to avoid conflict with local Prometheus if running
+
+[vector_api]
+enabled = true
+host = "0.0.0.0"
+port = 8081

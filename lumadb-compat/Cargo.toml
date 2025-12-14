@@ -6,9 +6,12 @@ members = [
     "crates/luma-mysql",
     "crates/luma-cassandra", 
     "crates/luma-mongodb",
+    "crates/luma-influxdb",
+    "crates/luma-prometheus",
     # "crates/luma-tools", # Commented out as likely not completely structured yet
     "crates/luma-server",
     "crates/luma-tools",
+    "crates/luma-benchmark",
     # "tools/repairer",
     # "extensions/vector",
     # "extensions/geo",
@@ -26,7 +29,7 @@ repository = "https://github.com/lumadb/lumadb-compat"
 tokio = { version = "1.35", features = ["full", "tracing"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 async-trait = "0.1"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "=0.4.31", features = ["serde"] }
 bincode = "1.3"
 uuid = { version = "1.4", features = ["v4", "serde"] }
 byteorder = "1.5"
@@ -63,6 +66,11 @@ base64 = "0.21"
 rustls = "0.23"
 rustls-pemfile = "2.0"
 socket2 = "0.5"
+tonic = "0.9"
+tokio-stream = { version = "0.1", features = ["net"] }
+warp = "0.3"
+prost = "0.11"
+tonic-build = "0.9"
 
 # Concurrent data structures
 dashmap = "5.5"
@@ -81,6 +89,16 @@ lz4 = "1.24"
 snap = "1.1"
 zstd = "0.13"
 flate2 = "1.0"
+roaring = "0.10"
+fst = "0.4"
+hyperloglog = "1.0"
+tdigest = "0.2"
+
+# Observability
+opentelemetry-proto = { version = "0.4", features = ["gen-tonic", "metrics", "trace", "logs"] }
+opentelemetry = { version = "0.21", features = ["metrics", "trace", "logs"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+hex = "0.4"
 
 # Internal crates
 luma-protocol-core = { path = "crates/luma-core" }
@@ -88,6 +106,8 @@ luma-postgres = { path = "crates/luma-postgres" }
 luma-mysql = { path = "crates/luma-mysql" }
 luma-cassandra = { path = "crates/luma-cassandra" }
 luma-mongodb = { path = "crates/luma-mongodb" }
+luma-influxdb = { path = "crates/luma-influxdb" }
+luma-prometheus = { path = "crates/luma-prometheus" }
 # luma-tools = { path = "crates/luma-tools" }
 
 [profile.release]

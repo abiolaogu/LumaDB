@@ -1,0 +1,137 @@
+    Checking luma-protocol-core v0.1.0 (/Users/AbiolaOgunsakin1/tdb+ fork/tdb-fork/lumadb-compat/crates/luma-core)
+error[E0432]: unresolved import `dashmap`
+ --> crates/luma-core/src/storage/tiering.rs:8:5
+  |
+8 | use dashmap::DashMap;
+  |     ^^^^^^^ use of unresolved module or unlinked crate `dashmap`
+  |
+  = help: if you wanted to use a crate named `dashmap`, use `cargo add dashmap` to add it to your `Cargo.toml`
+
+warning: unused import: `std::borrow::Cow`
+ --> crates/luma-core/src/types.rs:5:5
+  |
+5 | use std::borrow::Cow;
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ProtocolError`
+ --> crates/luma-core/src/transactions.rs:2:13
+  |
+2 | use crate::{ProtocolError, Result};
+  |             ^^^^^^^^^^^^^
+
+warning: unused import: `crate::Result`
+ --> crates/luma-core/src/indexing/bitmap.rs:3:5
+  |
+3 | use crate::Result;
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `crate::Result`
+ --> crates/luma-core/src/compression/gorilla.rs:2:5
+  |
+2 | use crate::Result;
+  |     ^^^^^^^^^^^^^
+
+warning: unused imports: `alphanumeric1`, `digit1`, `is_not`, `map_res`, `preceded`, `separated_list1`, `take_while1`, and `value`
+ --> crates/luma-core/src/parsing/promql.rs:3:40
+  |
+3 |     bytes::complete::{tag, take_while, take_while1, is_not},
+  |                                        ^^^^^^^^^^^  ^^^^^^
+4 |     character::complete::{alpha1, alphanumeric1, char, multispace0, digit1},
+  |                                   ^^^^^^^^^^^^^                     ^^^^^^
+5 |     combinator::{map, map_res, opt, recognize, value},
+  |                       ^^^^^^^                  ^^^^^
+6 |     sequence::{delimited, pair, preceded, separated_pair, tuple},
+  |                                 ^^^^^^^^
+7 |     branch::alt,
+8 |     multi::{separated_list0, separated_list1},
+  |                              ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> crates/luma-core/src/storage/tiering.rs:3:5
+  |
+3 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `RwLock`
+ --> crates/luma-core/src/storage/tiering.rs:4:22
+  |
+4 | use std::sync::{Arc, RwLock};
+  |                      ^^^^^^
+
+warning: unused imports: `BinaryOperator` and `Expression`
+ --> crates/luma-core/src/query/executor.rs:2:39
+  |
+2 | use crate::ir::{QueryPlan, Operation, Expression, BinaryOperator};
+  |                                       ^^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unused import: `Operation`
+ --> crates/luma-core/src/query/promql_engine.rs:4:28
+  |
+4 | use crate::ir::{QueryPlan, Operation}; // Assuming these are what parser returns or we map to
+  |                            ^^^^^^^^^
+
+warning: unused variable: `path`
+  --> crates/luma-core/src/storage/wal.rs:46:26
+   |
+46 |     pub async fn recover(path: PathBuf) -> Result<Vec<Segment>, std::io::Error> {
+   |                          ^^^^ help: if this is intentional, prefix it with an underscore: `_path`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `filter`
+  --> crates/luma-core/src/query/executor.rs:21:42
+   |
+21 |                 Operation::Scan { table, filter, .. } => {
+   |                                          ^^^^^^-
+   |                                          |
+   |                                          help: try removing the field
+
+warning: unused variable: `aggregates`
+  --> crates/luma-core/src/query/executor.rs:26:40
+   |
+26 |                 Operation::Aggregate { aggregates, .. } => {
+   |                                        ^^^^^^^^^^-
+   |                                        |
+   |                                        help: try removing the field
+
+warning: unused variable: `vector`
+  --> crates/luma-core/src/query/executor.rs:32:51
+   |
+32 |                 Operation::VectorSearch { column, vector, k } => {
+   |                                                   ^^^^^^ help: try ignoring the field: `vector: _`
+
+warning: unused variable: `inner_op`
+   --> crates/luma-core/src/parsing/promql.rs:139:17
+    |
+139 |         |(_, _, inner_op)| {
+    |                 ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_inner_op`
+
+warning: unused variable: `vector`
+  --> crates/luma-core/src/vector/hnsw.rs:31:39
+   |
+31 |     pub fn insert(&mut self, id: u64, vector: &[f32]) {
+   |                                       ^^^^^^ help: if this is intentional, prefix it with an underscore: `_vector`
+
+warning: unused variable: `query`
+  --> crates/luma-core/src/vector/hnsw.rs:46:26
+   |
+46 |     pub fn search(&self, query: &[f32], k: usize, ef_search: usize) -> Vec<(u64, f32)> {
+   |                          ^^^^^ help: if this is intentional, prefix it with an underscore: `_query`
+
+warning: unused variable: `k`
+  --> crates/luma-core/src/vector/hnsw.rs:46:41
+   |
+46 |     pub fn search(&self, query: &[f32], k: usize, ef_search: usize) -> Vec<(u64, f32)> {
+   |                                         ^ help: if this is intentional, prefix it with an underscore: `_k`
+
+warning: unused variable: `ef_search`
+  --> crates/luma-core/src/vector/hnsw.rs:46:51
+   |
+46 |     pub fn search(&self, query: &[f32], k: usize, ef_search: usize) -> Vec<(u64, f32)> {
+   |                                                   ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_ef_search`
+
+For more information about this error, try `rustc --explain E0432`.
+warning: `luma-protocol-core` (lib) generated 18 warnings
+error: could not compile `luma-protocol-core` (lib) due to 1 previous error; 18 warnings emitted

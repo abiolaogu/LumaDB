@@ -1,0 +1,11 @@
+[package]
+name = "luma-benchmark"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+luma-protocol-core = { path = "../luma-core" }
+tokio = { workspace = true, features = ["full"] }
+arrow = { version = "50.0", features = ["prettyprint"] }
+rand = "0.8"
+clap = { workspace = true, features = ["derive"] }
