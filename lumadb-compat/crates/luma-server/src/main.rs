@@ -4,7 +4,10 @@ mod server;
 mod connection;
 mod api_vector;
 mod grpc;
-mod protocols; // Added protocols
+mod protocols;
+mod infrastructure;
+mod wal;
+pub mod security;
 
 use clap::Parser;
 use std::path::PathBuf;
