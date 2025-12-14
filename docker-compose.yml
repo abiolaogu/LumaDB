@@ -1,91 +1,97 @@
 version: '3.8'
 
 services:
-  # Go Cluster Node (Core Database Service)
-  luma-node:
+  lumadb:
     build:
       context: .
-      dockerfile: go-cluster/Dockerfile
-    container_name: luma-node-01
+      dockerfile: Dockerfile
+    container_name: lumadb
     ports:
-      - "8080:8080" # HTTP API
-      - "9090:9090" # gRPC Internal
-    environment:
-      LUMA_NODE_ID: node-01
-      LUMA_HTTP_ADDR: :8080
-      LUMA_GRPC_ADDR: :9090
-      LUMA_RAFT_ADDR: :10000
+      # SQL Databases
+      - "5432:5432" # PostgreSQL
+      - "3306:3306" # MySQL
+      # NoSQL / Cache
+      - "6379:6379" # Redis
+      - "9042:9042" # Cassandra
+      - "27017:27017" # MongoDB
+      # Analytics
+      - "9200:9200" # Elasticsearch
+      - "8123:8123" # ClickHouse
+      - "8082:8082" # Druid
+      # Observability
+      - "9090:9090" # Prometheus
+      - "4317:4317" # OpenTelemetry gRPC
     volumes:
-      - luma-data:/data
-    networks:
-      - luma-net
-    restart: unless-stopped
-
-  # Python AI Service (Optional AI Features)
-  luma-ai:
-    build:
-      context: .
-      dockerfile: python-ai/Dockerfile
-    container_name: luma-ai
-    ports:
-      - "8000:8000"
+      - lumadb_data:/var/lib/lumadb/data
+      - lumadb_wal:/var/lib/lumadb/wal
+      - ./lumadb-compat/config.toml:/etc/lumadb/config.toml:ro
     environment:
-      LUMA_AI_PORT: 8000
-      LUMA_AI_HOST: 0.0.0.0
-    networks:
-      - luma-net
+      - RUST_LOG=info
+      - RUST_BACKTRACE=1
     restart: unless-stopped
-
-  # Redpanda (Event Streaming)
-  redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:latest
-    container_name: redpanda
-    command:
-      - redpanda
-      - start
-      - --smp 1
-      - --memory 1G
-      - --reserve-memory 0M
-      - --overprovisioned
-      - --node-id 0
-      - --check=false
-      - --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
-      - --advertise-kafka-addr PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
-      - --pandaproxy-addr 0.0.0.0:8082
-      - --advertise-pandaproxy-addr localhost:8082
-    ports:
-      - "8081:8081"
-      - "8082:8082"
-      - "9092:9092"
-      - "9644:9644"
-    volumes:
-      - redpanda-data:/var/lib/redpanda/data
-    networks:
-      - luma-net
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 16G
+        reservations:
+          cpus: '2'
+          memory: 4G
     healthcheck:
-      test: [ "CMD-SHELL", "rpk cluster health | grep -E 'Healthy|OK'" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Redpanda Console (Optional UI)
-  redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:latest
-    container_name: redpanda-console
-    ports:
-      - "8090:8080"
-    environment:
-      KAFKA_BROKERS: redpanda:29092
-    depends_on:
-      - redpanda
+      test: [ "CMD", "curl", "-f", "http://localhost:9200/_cluster/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
-      - luma-net
+      - lumadb-network
+
+  # Optional: Grafana for monitoring
+  grafana:
+    image: grafana/grafana:latest
+    container_name: lumadb-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - lumadb
+    networks:
+      - lumadb-network
+    profiles:
+      - monitoring
+
+  # Optional: Prometheus for metrics collection
+  prometheus-collector:
+    image: prom/prometheus:latest
+    container_name: lumadb-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    depends_on:
+      - lumadb
+    networks:
+      - lumadb-network
+    profiles:
+      - monitoring
 
 volumes:
-  luma-data:
-  redpanda-data:
-
+  lumadb_data:
+    driver: local
+  lumadb_wal:
+    driver: local
+  grafana_data:
+    driver: local
+  prometheus_data:
+    driver: local
 
 networks:
-  luma-net:
+  lumadb-network:
     driver: bridge
