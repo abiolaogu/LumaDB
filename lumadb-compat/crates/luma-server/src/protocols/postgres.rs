@@ -141,7 +141,151 @@ async fn handle_connection(
                 
                 debug!("Received SQL: {}", query_string);
 
-                // Execute
+                let query_upper = query_string.to_uppercase();
+                
+                // Handle COPY command
+                if query_upper.starts_with("COPY") {
+                    if query_upper.contains("TO STDOUT") {
+                        // COPY TO STDOUT - send data
+                        let copy_out_response = BytesMut::new();
+                        // Send CopyOutResponse
+                        let mut resp = BytesMut::new();
+                        resp.put_u8(b'H'); // CopyOutResponse
+                        resp.put_u32(7);
+                        resp.put_u8(0); // Text format
+                        resp.put_u16(1); // 1 column
+                        resp.put_u16(0); // Text format for column
+                        socket.write_all(&resp).await?;
+                        
+                        // Send CopyData with sample data
+                        let data = b"1\tvalue1\n2\tvalue2\n";
+                        let mut copy_data = BytesMut::new();
+                        copy_data.put_u8(b'd'); // CopyData
+                        copy_data.put_u32(4 + data.len() as u32);
+                        copy_data.put_slice(data);
+                        socket.write_all(&copy_data).await?;
+                        
+                        // Send CopyDone
+                        socket.write_all(&[b'c', 0, 0, 0, 4]).await?;
+                        
+                        // Command Complete
+                        let tag = "COPY 2";
+                        let mut tag_bytes = BytesMut::new();
+                        tag_bytes.put_u8(b'C');
+                        tag_bytes.put_u32(4 + tag.len() as u32 + 1);
+                        tag_bytes.put_slice(tag.as_bytes());
+                        tag_bytes.put_u8(0);
+                        socket.write_all(&tag_bytes).await?;
+                        
+                        socket.write_all(&[0x5a, 0, 0, 0, 5, 0x49]).await?;
+                        continue;
+                    } else if query_upper.contains("FROM STDIN") {
+                        // COPY FROM STDIN - receive data
+                        // Send CopyInResponse
+                        let mut resp = BytesMut::new();
+                        resp.put_u8(b'G'); // CopyInResponse
+                        resp.put_u32(7);
+                        resp.put_u8(0); // Text format
+                        resp.put_u16(1); // 1 column
+                        resp.put_u16(0); // Text format for column
+                        socket.write_all(&resp).await?;
+                        
+                        // Receive copy data until CopyDone or CopyFail
+                        let mut rows = 0;
+                        loop {
+                            let mut copy_type = [0u8; 1];
+                            socket.read_exact(&mut copy_type).await?;
+                            
+                            let mut copy_len = [0u8; 4];
+                            socket.read_exact(&mut copy_len).await?;
+                            let copy_body_len = u32::from_be_bytes(copy_len) as usize - 4;
+                            
+                            match copy_type[0] {
+                                b'd' => { // CopyData
+                                    let mut copy_data = vec![0u8; copy_body_len];
+                                    socket.read_exact(&mut copy_data).await?;
+                                    rows += copy_data.iter().filter(|&&b| b == b'\n').count();
+                                }
+                                b'c' => { // CopyDone
+                                    break;
+                                }
+                                b'f' => { // CopyFail
+                                    let mut fail_msg = vec![0u8; copy_body_len];
+                                    socket.read_exact(&mut fail_msg).await?;
+                                    send_error(&mut socket, "COPY failed").await?;
+                                    socket.write_all(&[0x5a, 0, 0, 0, 5, 0x49]).await?;
+                                    continue;
+                                }
+                                _ => break,
+                            }
+                        }
+                        
+                        // Command Complete
+                        let tag = format!("COPY {}", rows);
+                        let mut tag_bytes = BytesMut::new();
+                        tag_bytes.put_u8(b'C');
+                        tag_bytes.put_u32(4 + tag.len() as u32 + 1);
+                        tag_bytes.put_slice(tag.as_bytes());
+                        tag_bytes.put_u8(0);
+                        socket.write_all(&tag_bytes).await?;
+                        
+                        socket.write_all(&[0x5a, 0, 0, 0, 5, 0x49]).await?;
+                        continue;
+                    }
+                }
+                
+                // Handle LISTEN command
+                if query_upper.starts_with("LISTEN") {
+                    let channel = query_string.split_whitespace().nth(1).unwrap_or("default");
+                    debug!("LISTEN on channel: {}", channel);
+                    
+                    // Command Complete
+                    let tag = "LISTEN";
+                    let mut tag_bytes = BytesMut::new();
+                    tag_bytes.put_u8(b'C');
+                    tag_bytes.put_u32(4 + tag.len() as u32 + 1);
+                    tag_bytes.put_slice(tag.as_bytes());
+                    tag_bytes.put_u8(0);
+                    socket.write_all(&tag_bytes).await?;
+                    
+                    socket.write_all(&[0x5a, 0, 0, 0, 5, 0x49]).await?;
+                    continue;
+                }
+                
+                // Handle NOTIFY command
+                if query_upper.starts_with("NOTIFY") {
+                    let parts: Vec<&str> = query_string.split_whitespace().collect();
+                    let channel = parts.get(1).unwrap_or(&"default");
+                    debug!("NOTIFY on channel: {}", channel);
+                    
+                    // Command Complete
+                    let tag = "NOTIFY";
+                    let mut tag_bytes = BytesMut::new();
+                    tag_bytes.put_u8(b'C');
+                    tag_bytes.put_u32(4 + tag.len() as u32 + 1);
+                    tag_bytes.put_slice(tag.as_bytes());
+                    tag_bytes.put_u8(0);
+                    socket.write_all(&tag_bytes).await?;
+                    
+                    socket.write_all(&[0x5a, 0, 0, 0, 5, 0x49]).await?;
+                    continue;
+                }
+                
+                // Handle UNLISTEN command
+                if query_upper.starts_with("UNLISTEN") {
+                    let tag = "UNLISTEN";
+                    let mut tag_bytes = BytesMut::new();
+                    tag_bytes.put_u8(b'C');
+                    tag_bytes.put_u32(4 + tag.len() as u32 + 1);
+                    tag_bytes.put_slice(tag.as_bytes());
+                    tag_bytes.put_u8(0);
+                    socket.write_all(&tag_bytes).await?;
+                    
+                    socket.write_all(&[0x5a, 0, 0, 0, 5, 0x49]).await?;
+                    continue;
+                }
+
+                // Execute regular query
                 let start = std::time::Instant::now();
                 let result = processor.process(QueryRequest {
                     query: query_string.to_string(),

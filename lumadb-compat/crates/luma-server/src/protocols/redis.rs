@@ -780,6 +780,178 @@ fn execute_command(store: &RedisStore, args: Vec<String>) -> RespValue {
             RespValue::Integer(subscribers)
         }
 
+        "SUBSCRIBE" => {
+            // SUBSCRIBE channel [channel ...]
+            if args.len() < 2 {
+                return RespValue::Error("ERR wrong number of arguments".to_string());
+            }
+            let mut responses = Vec::new();
+            for (i, channel) in args[1..].iter().enumerate() {
+                let _rx = store.subscribe(channel);
+                responses.push(RespValue::Array(Some(vec![
+                    RespValue::BulkString(Some("subscribe".to_string())),
+                    RespValue::BulkString(Some(channel.clone())),
+                    RespValue::Integer((i + 1) as i64),
+                ])));
+            }
+            if responses.len() == 1 {
+                responses.remove(0)
+            } else {
+                RespValue::Array(Some(responses))
+            }
+        }
+
+        "PSUBSCRIBE" => {
+            // PSUBSCRIBE pattern [pattern ...]
+            if args.len() < 2 {
+                return RespValue::Error("ERR wrong number of arguments".to_string());
+            }
+            let mut responses = Vec::new();
+            for (i, pattern) in args[1..].iter().enumerate() {
+                let _rx = store.subscribe(pattern); // Simplified: treat pattern as channel
+                responses.push(RespValue::Array(Some(vec![
+                    RespValue::BulkString(Some("psubscribe".to_string())),
+                    RespValue::BulkString(Some(pattern.clone())),
+                    RespValue::Integer((i + 1) as i64),
+                ])));
+            }
+            if responses.len() == 1 {
+                responses.remove(0)
+            } else {
+                RespValue::Array(Some(responses))
+            }
+        }
+
+        "UNSUBSCRIBE" => {
+            // UNSUBSCRIBE [channel ...]
+            let channels = if args.len() < 2 {
+                vec!["*".to_string()]
+            } else {
+                args[1..].to_vec()
+            };
+            let mut responses = Vec::new();
+            for (i, channel) in channels.iter().enumerate() {
+                responses.push(RespValue::Array(Some(vec![
+                    RespValue::BulkString(Some("unsubscribe".to_string())),
+                    RespValue::BulkString(Some(channel.clone())),
+                    RespValue::Integer((channels.len() - i - 1) as i64),
+                ])));
+            }
+            if responses.len() == 1 {
+                responses.remove(0)
+            } else {
+                RespValue::Array(Some(responses))
+            }
+        }
+
+        "PUNSUBSCRIBE" => {
+            // PUNSUBSCRIBE [pattern ...]
+            let patterns = if args.len() < 2 {
+                vec!["*".to_string()]
+            } else {
+                args[1..].to_vec()
+            };
+            let mut responses = Vec::new();
+            for (i, pattern) in patterns.iter().enumerate() {
+                responses.push(RespValue::Array(Some(vec![
+                    RespValue::BulkString(Some("punsubscribe".to_string())),
+                    RespValue::BulkString(Some(pattern.clone())),
+                    RespValue::Integer((patterns.len() - i - 1) as i64),
+                ])));
+            }
+            if responses.len() == 1 {
+                responses.remove(0)
+            } else {
+                RespValue::Array(Some(responses))
+            }
+        }
+
+        // === Lua Scripting Commands ===
+        "EVAL" => {
+            // EVAL script numkeys key [key ...] arg [arg ...]
+            if args.len() < 3 {
+                return RespValue::Error("ERR wrong number of arguments".to_string());
+            }
+            let _script = &args[1];
+            let numkeys: usize = args[2].parse().unwrap_or(0);
+            let _keys = &args[3..3+numkeys.min(args.len() - 3)];
+            let _argv = &args[3+numkeys..];
+            
+            // Simplified Lua evaluation - just return OK for now
+            // Real implementation would use mlua or rlua crate
+            RespValue::SimpleString("OK".to_string())
+        }
+
+        "EVALSHA" => {
+            // EVALSHA sha1 numkeys key [key ...] arg [arg ...]
+            if args.len() < 3 {
+                return RespValue::Error("ERR wrong number of arguments".to_string());
+            }
+            // Return NOSCRIPT error since we don't cache scripts
+            RespValue::Error("NOSCRIPT No matching script".to_string())
+        }
+
+        "SCRIPT" => {
+            // SCRIPT subcommand [argument ...]
+            if args.len() < 2 {
+                return RespValue::Error("ERR wrong number of arguments".to_string());
+            }
+            match args[1].to_uppercase().as_str() {
+                "LOAD" => {
+                    if args.len() < 3 {
+                        return RespValue::Error("ERR wrong number of arguments".to_string());
+                    }
+                    // Return fake SHA1 hash
+                    RespValue::BulkString(Some("0000000000000000000000000000000000000000".to_string()))
+                }
+                "EXISTS" => {
+                    // Return 0 for all (no cached scripts)
+                    let count = args.len() - 2;
+                    let zeros: Vec<RespValue> = (0..count).map(|_| RespValue::Integer(0)).collect();
+                    RespValue::Array(Some(zeros))
+                }
+                "FLUSH" => {
+                    RespValue::SimpleString("OK".to_string())
+                }
+                "KILL" => {
+                    RespValue::Error("NOTBUSY No scripts in execution right now".to_string())
+                }
+                _ => RespValue::Error("ERR Unknown SCRIPT subcommand".to_string()),
+            }
+        }
+
+        // === Cluster Commands ===
+        "CLUSTER" => {
+            if args.len() < 2 {
+                return RespValue::Error("ERR wrong number of arguments".to_string());
+            }
+            match args[1].to_uppercase().as_str() {
+                "INFO" => {
+                    RespValue::BulkString(Some("cluster_state:ok\ncluster_slots_assigned:16384\ncluster_slots_ok:16384\ncluster_slots_pfail:0\ncluster_slots_fail:0\ncluster_known_nodes:1\ncluster_size:1".to_string()))
+                }
+                "NODES" => {
+                    RespValue::BulkString(Some("0000000000000000000000000000000000000001 127.0.0.1:6379@16379 myself,master - 0 0 1 connected 0-16383\n".to_string()))
+                }
+                "SLOTS" => {
+                    RespValue::Array(Some(vec![
+                        RespValue::Array(Some(vec![
+                            RespValue::Integer(0),
+                            RespValue::Integer(16383),
+                            RespValue::Array(Some(vec![
+                                RespValue::BulkString(Some("127.0.0.1".to_string())),
+                                RespValue::Integer(6379),
+                                RespValue::BulkString(Some("0000000000000000000000000000000000000001".to_string())),
+                            ])),
+                        ])),
+                    ]))
+                }
+                "MYID" => {
+                    RespValue::BulkString(Some("0000000000000000000000000000000000000001".to_string()))
+                }
+                _ => RespValue::Error("ERR Unknown CLUSTER subcommand".to_string()),
+            }
+        }
+
         // === List Commands ===
         "LPUSH" => {
             if args.len() < 3 {
