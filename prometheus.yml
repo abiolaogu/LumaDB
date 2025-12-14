@@ -1,0 +1,43 @@
+# Prometheus configuration for LumaDB monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'lumadb-monitor'
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Rule files
+rule_files:
+  - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # LumaDB metrics endpoint
+  - job_name: 'lumadb'
+    static_configs:
+      - targets: ['lumadb:9090']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Elasticsearch-style health check
+  - job_name: 'lumadb-elasticsearch'
+    static_configs:
+      - targets: ['lumadb:9200']
+    metrics_path: /_cluster/health
+    scrape_interval: 30s
+
+  # Node exporter for system metrics (if deployed)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

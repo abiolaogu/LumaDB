@@ -1,0 +1,231 @@
+---
+# LumaDB Kubernetes Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lumadb
+  labels:
+    app: lumadb
+    version: v4.1.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: lumadb
+  template:
+    metadata:
+      labels:
+        app: lumadb
+        version: v4.1.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: lumadb
+        image: lumadb/lumadb:4.1.0
+        imagePullPolicy: Always
+        ports:
+        - name: postgres
+          containerPort: 5432
+        - name: mysql
+          containerPort: 3306
+        - name: redis
+          containerPort: 6379
+        - name: elasticsearch
+          containerPort: 9200
+        - name: cassandra
+          containerPort: 9042
+        - name: mongodb
+          containerPort: 27017
+        - name: metrics
+          containerPort: 9090
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: RUST_BACKTRACE
+          value: "1"
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "16Gi"
+            cpu: "8"
+        livenessProbe:
+          httpGet:
+            path: /_cluster/health
+            port: elasticsearch
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /_cluster/health
+            port: elasticsearch
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/lumadb/data
+        - name: wal
+          mountPath: /var/lib/lumadb/wal
+        - name: config
+          mountPath: /etc/lumadb
+      volumes:
+      - name: config
+        configMap:
+          name: lumadb-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: fast-ssd
+      resources:
+        requests:
+          storage: 100Gi
+  - metadata:
+      name: wal
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: fast-ssd
+      resources:
+        requests:
+          storage: 20Gi
+
+---
+# LumaDB Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: lumadb
+  labels:
+    app: lumadb
+spec:
+  type: LoadBalancer
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+  - name: redis
+    port: 6379
+    targetPort: 6379
+  - name: elasticsearch
+    port: 9200
+    targetPort: 9200
+  - name: cassandra
+    port: 9042
+    targetPort: 9042
+  - name: mongodb
+    port: 27017
+    targetPort: 27017
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  selector:
+    app: lumadb
+
+---
+# LumaDB ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lumadb-config
+data:
+  config.toml: |
+    [server]
+    bind = "0.0.0.0"
+    data_dir = "/var/lib/lumadb/data"
+    wal_dir = "/var/lib/lumadb/wal"
+    
+    [protocols.postgres]
+    port = 5432
+    max_connections = 10000
+    
+    [protocols.mysql]
+    port = 3306
+    max_connections = 5000
+    
+    [protocols.redis]
+    port = 6379
+    max_connections = 50000
+    
+    [protocols.elasticsearch]
+    port = 9200
+    max_connections = 1000
+    
+    [protocols.cassandra]
+    port = 9042
+    max_connections = 2000
+    
+    [protocols.mongodb]
+    port = 27017
+    max_connections = 5000
+    
+    [security]
+    rate_limit_burst = 1000
+    rate_limit_per_second = 100
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: lumadb-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: lumadb
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lumadb-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: lumadb
+
+---
+# ServiceMonitor for Prometheus Operator
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: lumadb
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: lumadb
+  endpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics
