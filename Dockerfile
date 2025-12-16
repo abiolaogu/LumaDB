@@ -1,18 +1,27 @@
-FROM rust:1.75-slim as builder
+FROM rust:1.75-bookworm as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
     libssl-dev \
+    clang \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy manifests first for layer caching
-COPY lumadb-compat/Cargo.toml lumadb-compat/Cargo.lock ./lumadb-compat/
-COPY lumadb-compat/crates ./lumadb-compat/crates
-COPY Cargo.toml ./
+# Copy source code
+COPY rust-core ./rust-core
+COPY lumadb-compat ./lumadb-compat
+# Create a workspace Cargo.toml if it's missing, or we can build from within directories
+# Since the user lacks a root Cargo.toml, we'll try to build by overriding the dependency path in lumadb-compat
+# or assuming we can adjust paths.
+# Best approach: Copy the fixed rust-core to replace the one in lumadb-compat if that's the intention,
+# OR assume rust-core is the primary source.
+# Given the user's workspace, 'rust-core' seems to be the main dev artifact.
+# Let's replace the internal crate with our fixed one to ensure fixes propagate.
+RUN rm -rf lumadb-compat/crates/luma-core && cp -r rust-core lumadb-compat/crates/luma-core
 
 # Build release binary
 WORKDIR /app/lumadb-compat
@@ -25,6 +34,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create lumadb user

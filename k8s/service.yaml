@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lumadb
+  namespace: default
+  labels:
+    app: lumadb
+spec:
+  type: ClusterIP
+  selector:
+    app: lumadb
+  ports:
+    - port: 5432
+      name: postgres
+      targetPort: 5432
+    - port: 3306
+      name: mysql
+      targetPort: 3306
+    - port: 6379
+      name: redis
+      targetPort: 6379
+    - port: 9042
+      name: cassandra
+      targetPort: 9042
+    - port: 27017
+      name: mongodb
+      targetPort: 27017
+    - port: 9200
+      name: elasticsearch
+      targetPort: 9200
+    - port: 8123
+      name: clickhouse
+      targetPort: 8123
+    - port: 8082
+      name: druid
+      targetPort: 8082
+    - port: 9090
+      name: prometheus
+      targetPort: 9090
+    - port: 4317
+      name: otel-grpc
+      targetPort: 4317

@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lumadb
+  namespace: default
+  labels:
+    app: lumadb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lumadb
+  template:
+    metadata:
+      labels:
+        app: lumadb
+    spec:
+      containers:
+        - name: lumadb
+          image: lumadb:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config"
+            - "/etc/lumadb/config.toml"
+          ports:
+            - containerPort: 5432
+              name: postgres
+            - containerPort: 3306
+              name: mysql
+            - containerPort: 6379
+              name: redis
+            - containerPort: 9042
+              name: cassandra
+            - containerPort: 27017
+              name: mongodb
+            - containerPort: 9200
+              name: elasticsearch
+            - containerPort: 8123
+              name: clickhouse
+            - containerPort: 8082
+              name: druid
+            - containerPort: 9090
+              name: prometheus
+            - containerPort: 4317
+              name: otel-grpc
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/lumadb/data
+            - name: wal
+              mountPath: /var/lib/lumadb/wal
+            - name: config
+              mountPath: /etc/lumadb/config.toml
+              subPath: config.toml
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: 9200
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1000m"
+            limits:
+              memory: "8Gi"
+              cpu: "4000m"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: lumadb-data-pvc
+        - name: wal
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: lumadb-config
