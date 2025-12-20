@@ -64,6 +64,8 @@ pub mod ffi;
 pub mod execution;
 pub mod index;
 pub mod memory;
+pub mod security;
+pub mod crypto;
 pub mod wal;
 pub mod ai;
 pub mod error;

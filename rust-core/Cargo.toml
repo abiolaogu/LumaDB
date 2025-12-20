@@ -68,6 +68,9 @@ bson = "2.9"
 sha2 = "0.10"
 md5 = "0.7"
 tokio-postgres = "0.7"
+pgwire = "0.19"
+# rand = "0.8"  # Replaced by internal crypto
+# md5 = "0.7"   # Replaced by internal crypto
 
 # CPU detection
 num_cpus = "1.16"

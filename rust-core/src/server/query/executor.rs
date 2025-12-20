@@ -15,8 +15,9 @@ impl Executor {
         match plan {
             QueryPlan::Select(plan) => {
                 let docs = self.db.scan(&plan.collection, |_| true).await?;
-                // Apply filter/projection here if not pushed down
-                Ok(ExecutionResult::Select(docs))
+                // In a real implementation, we would filter and project here.
+                // For now we pass the docs and the requested projection so the caller (pg_wire) can format it.
+                Ok(ExecutionResult::Select(docs, plan.projection))
             },
             QueryPlan::Insert(plan) => {
                 let count = plan.documents.len();
@@ -42,7 +43,7 @@ impl Executor {
 }
 
 pub enum ExecutionResult {
-    Select(Vec<Document>),
+    Select(Vec<Document>, Option<Vec<String>>),
     Modify { affected: u64 },
     Ping,
 }

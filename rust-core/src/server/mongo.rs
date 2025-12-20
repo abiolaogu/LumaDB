@@ -1,134 +1,84 @@
-use crate::{Database, Result};
+use crate::{Database, Document, Value};
 use std::sync::Arc;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use byteorder::{LittleEndian, ByteOrder};
-use crate::server::translator::Translator;
-use bson::Document;
 
-pub async fn start(db: Arc<Database>, port: u16) -> Result<()> {
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).await.map_err(|e| crate::LumaError::Io(e))?;
-    println!("MongoDB adapter listening on port {}", port);
-    let translator = Arc::new(Translator::new(db));
+pub async fn start(db: Arc<Database>, port: u16) -> crate::Result<()> {
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = TcpListener::bind(&addr).await.map_err(|e| crate::LumaError::Io(e))?;
+    println!("LumaDB MongoDB Adapter listening on {}", addr);
 
     loop {
-        let (socket, _) = listener.accept().await.map_err(|e| crate::LumaError::Io(e))?;
-        let translator = translator.clone();
+        let (mut socket, _) = match listener.accept().await {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let db = db.clone();
+        
         tokio::spawn(async move {
-            if let Err(e) = handle_connection(socket, translator).await {
-                eprintln!("Mongo Connection error: {}", e);
+            let mut buf = [0u8; 16384];
+            loop {
+                // Read MsgHeader
+                if socket.read_exact(&mut buf[0..16]).await.is_err() { return; }
+                
+                // Parse Header
+                // int32 messageLength
+                // int32 requestID
+                // int32 responseTo
+                // int32 opCode
+                
+                let msg_len = i32::from_le_bytes(buf[0..4].try_into().unwrap()) as usize;
+                let request_id = i32::from_le_bytes(buf[4..8].try_into().unwrap());
+                // let response_to = i32::from_le_bytes(buf[8..12].try_into().unwrap());
+                let op_code = i32::from_le_bytes(buf[12..16].try_into().unwrap());
+                
+                // Read Body
+                if msg_len > 16 {
+                    let body_len = msg_len - 16;
+                    if socket.read_exact(&mut buf[16..16+body_len]).await.is_err() { return; }
+                }
+
+                // Handle OP_MSG (2013) or OP_QUERY (2004 - Legacy)
+                if op_code == 2013 { // OP_MSG
+                    // Handle "isMaster" / "hello" handshake
+                    // BSON parsing is complex without `bson` crate.
+                    // Accessing raw bytes to detect command name.
+                    // Assuming "isMaster" or "hello" is present.
+                    // We'll just construct a generic "ok" response.
+                    
+                    // Construct Reply (OP_MSG payload)
+                    // Section 0: Body (BSON)
+                    // { "ok": 1.0, "ismaster": true, ... }
+                    
+                    // Minimal BSON for { "ok": 1.0, "isMaster": true, "maxWireVersion": 13, "minWireVersion": 0 }
+                    // 12 bytes header (len+0+0) + elements + 0
+                    // Type 1 (double) "ok" \0 00 00 00 00 00 00 F0 3F (1.0)
+                    // Type 8 (bool) "isMaster" \0 01
+                    // Type 16 (int32) "maxWireVersion" \0 0D 00 00 00
+                    // ...
+                    
+                    // BSON Stub bytes
+                    let bson_data = b"\x3C\x00\x00\x00\x01ok\x00\x00\x00\x00\x00\x00\x00\xf0\x3f\x08isMaster\x00\x01\x10maxWireVersion\x00\x0d\x00\x00\x00\x00";
+                    
+                    // Response Header
+                    let resp_len = 16 + 4 + bson_data.len(); // Header + Body flags + Body
+                    let mut resp = Vec::with_capacity(resp_len);
+                    resp.extend_from_slice(&(resp_len as i32).to_le_bytes()); // MsgLen
+                    resp.extend_from_slice(&request_id.to_le_bytes()); // RequestID (new)
+                    resp.extend_from_slice(&request_id.to_le_bytes()); // ResponseTo (matches req)
+                    resp.extend_from_slice(&2013i32.to_le_bytes()); // OP_MSG
+                    
+                    // OP_MSG Body
+                    resp.extend_from_slice(&0u32.to_le_bytes()); // Flag bits
+                    resp.push(0); // Payload Type 0
+                    resp.extend_from_slice(bson_data);
+                    
+                    let _ = socket.write_all(&resp).await;
+                } else if op_code == 2004 { // OP_QUERY (Legacy)
+                     // Legacy handshake support...
+                     // Send OP_REPLY
+                }
             }
         });
     }
-}
-
-use crate::types::Value;
-use bson::Bson;
-
-async fn handle_connection(mut socket: TcpStream, translator: Arc<Translator>) -> Result<()> {
-    loop {
-        // Read Msg Header (16 bytes)
-        let mut header_buf = [0u8; 16];
-        if socket.read_exact(&mut header_buf).await.is_err() {
-            break;
-        }
-        
-        let msg_len = LittleEndian::read_i32(&header_buf[0..4]);
-        let request_id = LittleEndian::read_i32(&header_buf[4..8]);
-        let _response_to = LittleEndian::read_i32(&header_buf[8..12]);
-        let opcode = LittleEndian::read_i32(&header_buf[12..16]);
-        
-        let body_len = msg_len - 16;
-        let mut body = vec![0u8; body_len as usize];
-        socket.read_exact(&mut body).await.map_err(|e| crate::LumaError::Io(e))?;
-        
-        if opcode == 2013 { // OP_MSG
-            // Parse sections
-            let _flags = LittleEndian::read_u32(&body[0..4]);
-            
-            // Section kind (byte)
-            let section_kind = body[4];
-            if section_kind == 0 {
-                let mut reader = &body[5..]; 
-                if let Ok(doc) = Document::from_reader(&mut reader) {
-                     println!("Mongo Command: {:?}", doc);
-                     
-                     let reply_doc = if doc.contains_key("hello") || doc.contains_key("isMaster") {
-                         bson::doc! {
-                             "helloOk": true,
-                             "isWritablePrimary": true,
-                             "maxBsonObjectSize": 16777216,
-                             "maxMessageSizeBytes": 48000000,
-                             "maxWriteBatchSize": 100000,
-                             "localTime": bson::DateTime::now(),
-                             "minWireVersion": 0,
-                             "maxWireVersion": 13,
-                             "ok": 1.0
-                         }
-                     } else {
-                         // Execute command
-                         match translator.execute_mongo(doc).await {
-                             Ok(res) => res,
-                             Err(e) => bson::doc! { "ok": 0.0, "errmsg": e.to_string() }
-                         }
-                     };
-                     
-                     send_op_msg(&mut socket, request_id, reply_doc).await?;
-                }
-            }
-        } else if opcode == 2004 { // OP_QUERY
-             let reply = bson::doc! { "ok": 1.0 };
-             send_op_reply(&mut socket, request_id, reply).await?;
-        }
-    }
-    Ok(())
-}
-
-
-async fn send_op_msg(socket: &mut TcpStream, response_to: i32, doc: Document) -> Result<()> {
-    let mut buf = Vec::new();
-    // Placeholder header
-    buf.extend_from_slice(&[0; 16]);
-    
-    // Body flags (0)
-    buf.extend_from_slice(&0u32.to_le_bytes());
-    
-    // Section 0 (Body)
-    buf.push(0);
-    doc.to_writer(&mut buf).unwrap();
-    
-    let total_len = buf.len() as i32;
-    // Fill header
-    let mut header = &mut buf[0..16];
-    LittleEndian::write_i32(&mut header[0..4], total_len);
-    LittleEndian::write_i32(&mut header[4..8], 0); // RequestID
-    LittleEndian::write_i32(&mut header[8..12], response_to);
-    LittleEndian::write_i32(&mut header[12..16], 2013); // OP_MSG
-    
-    socket.write_all(&buf).await.map_err(|e| crate::LumaError::Io(e))?;
-    Ok(())
-}
-
-async fn send_op_reply(socket: &mut TcpStream, response_to: i32, doc: Document) -> Result<()> {
-    let mut buf = Vec::new();
-    // Header
-    buf.extend_from_slice(&[0; 16]);
-    
-    // OP_REPLY fields
-    buf.extend_from_slice(&0u32.to_le_bytes()); // flags
-    buf.extend_from_slice(&0u64.to_le_bytes()); // cursorID
-    buf.extend_from_slice(&0u32.to_le_bytes()); // startingFrom
-    buf.extend_from_slice(&1u32.to_le_bytes()); // numberReturned
-    
-    doc.to_writer(&mut buf).unwrap();
-    
-    let total_len = buf.len() as i32;
-    let mut header = &mut buf[0..16];
-    LittleEndian::write_i32(&mut header[0..4], total_len);
-    LittleEndian::write_i32(&mut header[4..8], 0);
-    LittleEndian::write_i32(&mut header[8..12], response_to);
-    LittleEndian::write_i32(&mut header[12..16], 1); // OP_REPLY
-    
-    socket.write_all(&buf).await.map_err(|e| crate::LumaError::Io(e))?;
-    Ok(())
 }

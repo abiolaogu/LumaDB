@@ -49,16 +49,16 @@ To create the world's most versatile high-performance database that unifies tran
 ### 2.4 Security (NEW in v3.0)
 | Feature | Description | Status |
 |---------|-------------|--------|
-| MD5 Authentication | PostgreSQL-compatible | ✅ Implemented |
-| Rate Limiting | IP-based token bucket | ✅ Implemented |
-| RBAC | Role-based access control | ✅ Implemented |
+| MD5 Authentication | PostgreSQL-compatible | ⚠️ Partial (Core Ready) |
+| Rate Limiting | IP-based token bucket | ⚠️ Planned |
+| RBAC | Role-based access control | ✅ Implemented (Core) |
 | Audit Logging | tracing integration | ✅ Implemented |
 
 ### 2.5 AI & Analytics
 - Built-in Vector Search (ANN) with HNSW
-- LumaText inverted index (RoaringBitmap + FST)
-- Columnar storage with Arrow/Parquet
-- PromptQL natural language queries
+- LumaText inverted index (RoaringBitmap + FST) (Planned)
+- Columnar storage with Arrow/Parquet (Implemented)
+- PromptQL natural language queries (Planned)
 
 ## 3. Architecture
 

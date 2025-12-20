@@ -23,11 +23,25 @@ impl QueryParser {
                         if from.is_empty() { return Ok(QueryPlan::Ping); } // Approximation
                         
                         let collection = format!("{}", from[0].relation);
-                        // Simplified: No filter parsing yet
+                        // Extract projection
+                        let projection = if select.projection.iter().any(|item| matches!(item, sqlparser::ast::SelectItem::Wildcard(_))) {
+                            None
+                        } else {
+                            let cols: Vec<String> = select.projection.iter().filter_map(|item| {
+                                match item {
+                                    sqlparser::ast::SelectItem::UnnamedExpr(Expr::Identifier(ident)) => Some(ident.value.clone()),
+                                    sqlparser::ast::SelectItem::ExprWithAlias { alias, .. } => Some(alias.value.clone()), // Support alias as column name
+                                    _ => None,
+                                }
+                            }).collect();
+                            
+                            if cols.is_empty() { None } else { Some(cols) }
+                        };
+
                         Ok(QueryPlan::Select(SelectPlan {
                             collection,
                             filter: None,
-                            projection: None,
+                            projection,
                             limit: None,
                         }))
                     } else {

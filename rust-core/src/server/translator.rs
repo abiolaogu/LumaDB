@@ -13,16 +13,22 @@ impl Translator {
         }
     }
 
-    /// Execute a SQL query
+    /// Execute a SQL query (compatibility wrapper)
     pub async fn execute_sql(&self, sql: &str) -> Result<Vec<Document>> {
         let plan = QueryParser::parse_sql(sql)?;
         let result = self.executor.execute(plan).await?;
         
         match result {
-            ExecutionResult::Select(docs) => Ok(docs),
+            ExecutionResult::Select(docs, _) => Ok(docs),
             ExecutionResult::Modify { .. } => Ok(vec![]),
             ExecutionResult::Ping => Ok(vec![]),
         }
+    }
+
+    /// Execute a SQL query returning full ExecutionResult
+    pub async fn execute_sql_raw(&self, sql: &str) -> Result<ExecutionResult> {
+        let plan = QueryParser::parse_sql(sql)?;
+        self.executor.execute(plan).await
     }
 
     /// Execute a Mongo Command (BSON)
@@ -31,7 +37,7 @@ impl Translator {
         let result = self.executor.execute(plan).await?;
         
         match result {
-             ExecutionResult::Select(docs) => {
+             ExecutionResult::Select(docs, _) => {
                  // Convert back to BSON
                 let mut result_docs = Vec::new();
                 for d in docs {
