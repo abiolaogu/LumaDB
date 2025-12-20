@@ -81,9 +81,8 @@ pub mod columnar;    // Columnar storage with SIMD (kdb+-style)
 pub mod io;          // io_uring and direct I/O
 pub mod latency;     // Predictable latency SLAs
 // pub mod ffi;         // FFI bindings for Go/Python (Moved to top)
-pub mod node_bindings; // Node.js bindings using napi-rs
-
-pub mod scripting;     // Stored Procedures & Triggers
+// pub mod node_bindings; // Node.js bindings using napi-rs (Disabled for offline build)
+// pub mod scripting;     // Stored Procedures & Triggers (Disabled for offline build)
 pub mod server;        // Multi-protocol Server Adapters
 pub mod observability; // OpenTelemetry-compatible observability
 pub mod net;           // High-performance networking (DPDK/RDMA stubs)
@@ -117,10 +116,11 @@ pub struct Database {
     wal: Arc<WriteAheadLog>,
     stats: Arc<RwLock<DatabaseStats>>,
     
-    // Scripting
-    pub scripting: Arc<scripting::ScriptingEngine>,
-    pub procedures: Arc<scripting::procedures::Procedures>,
-    pub triggers: Arc<scripting::triggers::Triggers>,
+    
+    // Scripting (Disabled for offline build)
+    // pub scripting: Arc<scripting::ScriptingEngine>,
+    // pub procedures: Arc<scripting::procedures::Procedures>,
+    // pub triggers: Arc<scripting::triggers::Triggers>,
 }
 
 impl Database {
@@ -129,9 +129,9 @@ impl Database {
         let wal = Arc::new(WriteAheadLog::new(&config)?);
         let shards = Arc::new(ShardManager::new(&config).await?);
 
-        let scripting = Arc::new(scripting::ScriptingEngine::new());
-        let procedures = Arc::new(scripting::procedures::Procedures::new(scripting.clone()));
-        let triggers = Arc::new(scripting::triggers::Triggers::new(scripting.clone()));
+        // let scripting = Arc::new(scripting::ScriptingEngine::new());
+        // let procedures = Arc::new(scripting::procedures::Procedures::new(scripting.clone()));
+        // let triggers = Arc::new(scripting::triggers::Triggers::new(scripting.clone()));
 
         Ok(Self {
             config,
@@ -139,9 +139,9 @@ impl Database {
             collections: DashMap::new(),
             wal,
             stats: Arc::new(RwLock::new(DatabaseStats::default())),
-            scripting,
-            procedures,
-            triggers,
+            // scripting,
+            // procedures,
+            // triggers,
         })
     }
 
@@ -186,17 +186,17 @@ impl Database {
 
     /// Insert a document
     pub async fn insert(&self, collection: &str, mut doc: Document) -> Result<DocumentId> {
-        use scripting::triggers::TriggerEvent;
+        // use scripting::triggers::TriggerEvent;
         
         // Before Insert Trigger
-        self.triggers.on_event(collection, TriggerEvent::BeforeInsert, &mut doc)?;
+        // self.triggers.on_event(collection, TriggerEvent::BeforeInsert, &mut doc)?;
         
         let coll = self.collection(collection);
         let id = coll.insert(doc.clone()).await?;
         self.stats.write().inserts += 1;
         
         // After Insert Trigger
-        self.triggers.on_event(collection, TriggerEvent::AfterInsert, &mut doc)?;
+        // self.triggers.on_event(collection, TriggerEvent::AfterInsert, &mut doc)?;
         
         Ok(id)
     }
@@ -211,32 +211,32 @@ impl Database {
 
     /// Update a document
     pub async fn update(&self, collection: &str, id: &DocumentId, mut doc: Document) -> Result<bool> {
-        use scripting::triggers::TriggerEvent;
+        // use scripting::triggers::TriggerEvent;
         
-        self.triggers.on_event(collection, TriggerEvent::BeforeUpdate, &mut doc)?;
+        // self.triggers.on_event(collection, TriggerEvent::BeforeUpdate, &mut doc)?;
         
         let coll = self.collection(collection);
         let result = coll.update(id, doc.clone()).await?;
         self.stats.write().updates += 1;
         
-        self.triggers.on_event(collection, TriggerEvent::AfterUpdate, &mut doc)?;
+        // self.triggers.on_event(collection, TriggerEvent::AfterUpdate, &mut doc)?;
         Ok(result)
     }
 
     /// Delete a document
     pub async fn delete(&self, collection: &str, id: &DocumentId) -> Result<bool> {
-        use scripting::triggers::TriggerEvent;
+        // use scripting::triggers::TriggerEvent;
         // Note: Delete triggers don't have access to the document content in this simple implementation
         // A real impl would fetch it first.
-        let mut empty_doc = Document::new(std::collections::HashMap::new());
+        // let mut empty_doc = Document::new(std::collections::HashMap::new());
         
-        self.triggers.on_event(collection, TriggerEvent::BeforeDelete, &mut empty_doc)?;
+        // self.triggers.on_event(collection, TriggerEvent::BeforeDelete, &mut empty_doc)?;
         
         let coll = self.collection(collection);
         let result = coll.delete(id).await?;
         self.stats.write().deletes += 1;
         
-        self.triggers.on_event(collection, TriggerEvent::AfterDelete, &mut empty_doc)?;
+        // self.triggers.on_event(collection, TriggerEvent::AfterDelete, &mut empty_doc)?;
         Ok(result)
     }
 

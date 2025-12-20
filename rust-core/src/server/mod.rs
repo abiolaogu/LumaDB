@@ -1,4 +1,4 @@
-pub mod postgres;
+// pub mod postgres;  // Disabled - requires pgwire crate
 pub mod mysql;
 pub mod mongo;
 pub mod cassandra;
@@ -10,11 +10,32 @@ pub mod http_api;
 pub mod translator;
 pub mod query;
 
-// ... (omitted shared imports) ...
+use std::sync::Arc;
+use crate::Database;
+
+/// Server configuration
+#[derive(Clone)]
+pub struct ServerConfig {
+    pub pg_port: u16,
+    pub mysql_port: u16,
+    pub mongo_port: u16,
+    pub cql_port: u16,
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            pg_port: 5432,
+            mysql_port: 3306,
+            mongo_port: 27017,
+            cql_port: 9042,
+        }
+    }
+}
 
 /// Start all protocol listeners
 pub async fn start_server(db: Arc<Database>, config: ServerConfig) -> crate::Result<()> {
-    let db_pg = db.clone();
+    // let db_pg = db.clone();  // Commented - pgwire disabled
     let db_mysql = db.clone();
     let db_mongo = db.clone();
     let db_cql = db.clone();
@@ -24,12 +45,12 @@ pub async fn start_server(db: Arc<Database>, config: ServerConfig) -> crate::Res
     let db_kdb = db.clone();
     let db_http = db.clone();
 
-    // Postgres
-    tokio::spawn(async move {
-        if let Err(e) = postgres::start(db_pg, config.pg_port).await {
-            eprintln!("Postgres server error: {}", e);
-        }
-    });
+    // Postgres - Disabled (pgwire dependency removed)
+    // tokio::spawn(async move {
+    //     if let Err(e) = postgres::start(db_pg, config.pg_port).await {
+    //         eprintln!("Postgres server error: {}", e);
+    //     }
+    // });
 
     // MySQL
     tokio::spawn(async move {
@@ -90,3 +111,4 @@ pub async fn start_server(db: Arc<Database>, config: ServerConfig) -> crate::Res
 
     Ok(())
 }
+

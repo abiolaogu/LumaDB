@@ -82,7 +82,7 @@ pub async fn start(db: Arc<Database>, port: u16) -> crate::Result<()> {
                              // Assuming standard GET object here.
                              match db.get(bucket, &key.to_string()).await {
                                  Ok(Some(doc)) => {
-                                     if let Some(content) = doc.get("content").and_then(|v| v.as_bytes()) {
+                                     if let Some(Value::Bytes(content)) = doc.get("content") {
                                           let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: application/octet-stream\r\n\r\n", content.len());
                                           let _ = socket.write_all(response.as_bytes()).await;
                                           let _ = socket.write_all(content).await;

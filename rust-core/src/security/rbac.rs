@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use crate::security::auth::User;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Permission {

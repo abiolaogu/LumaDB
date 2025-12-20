@@ -197,13 +197,13 @@ pub async fn start(db: Arc<Database>, port: u16) -> crate::Result<()> {
                                     db.insert("redis_default", doc).await.ok();
                                     let _ = socket.write_all(format!(":{}\r\n", new_val).as_bytes()).await;
                                 }
-                                None => {
+                                Ok(None) => {
                                     let mut data = HashMap::new();
                                     data.insert("value".to_string(), Value::Int(1));
                                     db.insert("redis_default", Document::with_id(key, data)).await.ok();
                                     let _ = socket.write_all(b":1\r\n").await;
                                 }
-                                _ => { let _ = socket.write_all(b"-ERR error\r\n").await; }
+                                Err(_) => { let _ = socket.write_all(b"-ERR error\r\n").await; }
                              }
                          }
                     }
@@ -223,13 +223,13 @@ pub async fn start(db: Arc<Database>, port: u16) -> crate::Result<()> {
                                     db.insert("redis_default", doc).await.ok();
                                     let _ = socket.write_all(format!(":{}\r\n", len).as_bytes()).await;
                                 }
-                                None => {
+                                Ok(None) => {
                                     let mut data = HashMap::new();
                                     data.insert("value".to_string(), Value::Array(vec![Value::String(val.to_string())]));
                                     db.insert("redis_default", Document::with_id(key, data)).await.ok();
                                     let _ = socket.write_all(b":1\r\n").await;
                                 }
-                                _ => { let _ = socket.write_all(b"-ERR error\r\n").await; }
+                                Err(_) => { let _ = socket.write_all(b"-ERR error\r\n").await; }
                              }
                          }
                     }

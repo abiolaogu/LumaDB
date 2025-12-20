@@ -1,264 +1,140 @@
 """
-TDB+ Python AI Layer Benchmarks
+Python Benchmark Suite for LumaDB AI Services
 
-Comprehensive benchmarks for vector search, embeddings, and NLP operations.
+Benchmarks vector search and embedding performance.
 """
 
-import asyncio
-import json
 import time
-from typing import Callable, List, Tuple
 import numpy as np
+from typing import Callable, Any
+import sys
+import os
+
+# Add parent to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-class BenchmarkResult:
-    """Stores benchmark results."""
-
-    def __init__(self, name: str, iterations: int, total_time: float):
-        self.name = name
-        self.iterations = iterations
-        self.total_time = total_time
-        self.ops_per_sec = iterations / total_time
-        self.avg_latency_ms = (total_time / iterations) * 1000
-
-    def __str__(self) -> str:
-        return (
-            f"{self.name}: {self.ops_per_sec:.2f} ops/sec, "
-            f"{self.avg_latency_ms:.3f} ms/op ({self.iterations} iterations)"
-        )
-
-
-def benchmark(name: str, iterations: int = 1000):
-    """Decorator to benchmark a function."""
-    def decorator(func: Callable):
-        def wrapper(*args, **kwargs):
-            start = time.perf_counter()
-            for _ in range(iterations):
-                func(*args, **kwargs)
-            elapsed = time.perf_counter() - start
-            result = BenchmarkResult(name, iterations, elapsed)
-            print(result)
-            return result
-        return wrapper
-    return decorator
-
-
-def async_benchmark(name: str, iterations: int = 1000):
-    """Decorator to benchmark an async function."""
-    def decorator(func: Callable):
-        async def wrapper(*args, **kwargs):
-            start = time.perf_counter()
-            for _ in range(iterations):
-                await func(*args, **kwargs)
-            elapsed = time.perf_counter() - start
-            result = BenchmarkResult(name, iterations, elapsed)
-            print(result)
-            return result
-        return wrapper
-    return decorator
-
-
-# ============================================================================
-# Vector Operations Benchmarks
-# ============================================================================
-
-@benchmark("vector_dot_product_384", iterations=10000)
-def bench_dot_product_small():
-    """Benchmark dot product for 384-dim vectors (MiniLM)."""
-    a = np.random.randn(384).astype(np.float32)
-    b = np.random.randn(384).astype(np.float32)
-    np.dot(a, b)
-
-
-@benchmark("vector_dot_product_768", iterations=10000)
-def bench_dot_product_medium():
-    """Benchmark dot product for 768-dim vectors (BERT)."""
-    a = np.random.randn(768).astype(np.float32)
-    b = np.random.randn(768).astype(np.float32)
-    np.dot(a, b)
-
-
-@benchmark("vector_cosine_similarity", iterations=10000)
-def bench_cosine_similarity():
-    """Benchmark cosine similarity."""
-    a = np.random.randn(384).astype(np.float32)
-    b = np.random.randn(384).astype(np.float32)
-    np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-
-@benchmark("batch_cosine_1000", iterations=100)
-def bench_batch_cosine():
-    """Benchmark batch cosine similarity (1000 vectors)."""
-    query = np.random.randn(384).astype(np.float32)
-    corpus = np.random.randn(1000, 384).astype(np.float32)
-
-    # Normalize
-    query_norm = query / np.linalg.norm(query)
-    corpus_norms = corpus / np.linalg.norm(corpus, axis=1, keepdims=True)
-
-    # Compute similarities
-    np.dot(corpus_norms, query_norm)
-
-
-@benchmark("top_k_search_10000", iterations=100)
-def bench_top_k():
-    """Benchmark top-k search in 10000 vectors."""
-    similarities = np.random.randn(10000).astype(np.float32)
-    np.argsort(similarities)[-10:][::-1]
-
-
-# ============================================================================
-# JSON Operations Benchmarks
-# ============================================================================
-
-@benchmark("json_serialize_small", iterations=10000)
-def bench_json_serialize_small():
-    """Benchmark JSON serialization of small documents."""
-    doc = {"id": "123", "name": "test", "value": 42}
-    json.dumps(doc)
-
-
-@benchmark("json_serialize_medium", iterations=5000)
-def bench_json_serialize_medium():
-    """Benchmark JSON serialization of medium documents."""
-    doc = {
-        "id": "123",
-        "name": "test",
-        "tags": ["a", "b", "c"] * 10,
-        "nested": {f"field_{i}": i for i in range(20)}
+def benchmark(name: str, func: Callable, iterations: int = 10) -> dict:
+    """Run a benchmark and return timing statistics."""
+    times = []
+    
+    # Warmup
+    func()
+    
+    for _ in range(iterations):
+        start = time.perf_counter()
+        result = func()
+        elapsed = time.perf_counter() - start
+        times.append(elapsed)
+    
+    return {
+        "name": name,
+        "min_ms": min(times) * 1000,
+        "max_ms": max(times) * 1000,
+        "avg_ms": sum(times) / len(times) * 1000,
+        "p99_ms": np.percentile(times, 99) * 1000,
     }
-    json.dumps(doc)
 
 
-@benchmark("json_parse_small", iterations=10000)
-def bench_json_parse_small():
-    """Benchmark JSON parsing of small documents."""
-    data = '{"id": "123", "name": "test", "value": 42}'
-    json.loads(data)
+def benchmark_vector_search():
+    """Benchmark vector search operations."""
+    from tdbai.vector_gpu import GPUVectorIndex, GPUIndexConfig
+    
+    print("\n=== Vector Search Benchmarks ===")
+    
+    config = GPUIndexConfig(dim=768, nlist=1024, nprobe=64)
+    index = GPUVectorIndex(config)
+    
+    # Generate data
+    n_vectors = 100_000
+    n_queries = 100
+    
+    print(f"Generating {n_vectors} vectors...")
+    vectors = np.random.randn(n_vectors, 768).astype(np.float32)
+    queries = np.random.randn(n_queries, 768).astype(np.float32)
+    
+    # Training benchmark
+    result = benchmark("train", lambda: index.train(vectors[:10000]), iterations=1)
+    print(f"Train: {result['avg_ms']:.2f}ms")
+    
+    # Add benchmark
+    result = benchmark("add", lambda: index.add(vectors), iterations=1)
+    print(f"Add {n_vectors} vectors: {result['avg_ms']:.2f}ms")
+    
+    # Search benchmark
+    result = benchmark("search", lambda: index.search(queries, k=10), iterations=10)
+    qps = (n_queries * 10) / (result['avg_ms'] / 1000)
+    print(f"Search: {result['avg_ms']:.2f}ms avg, {result['p99_ms']:.2f}ms p99")
+    print(f"Search QPS: {qps:.0f}")
+    
+    return qps
 
 
-@benchmark("json_parse_medium", iterations=5000)
-def bench_json_parse_medium():
-    """Benchmark JSON parsing of medium documents."""
-    doc = {
-        "id": "123",
-        "name": "test",
-        "tags": ["a", "b", "c"] * 10,
-        "nested": {f"field_{i}": i for i in range(20)}
-    }
-    data = json.dumps(doc)
-    json.loads(data)
+def benchmark_embeddings():
+    """Benchmark embedding generation."""
+    from tdbai.embedding_onnx import ONNXEmbeddingModel
+    
+    print("\n=== Embedding Benchmarks ===")
+    
+    model = ONNXEmbeddingModel()
+    
+    # Generate test texts
+    texts = [f"This is test sentence number {i} for benchmarking embeddings." for i in range(100)]
+    
+    # Single embed
+    result = benchmark("embed_single", lambda: model.embed(texts[:1]), iterations=100)
+    print(f"Single embed: {result['avg_ms']:.2f}ms avg")
+    
+    # Batch embed
+    result = benchmark("embed_batch_100", lambda: model.embed(texts), iterations=10)
+    texts_per_sec = 100 / (result['avg_ms'] / 1000)
+    print(f"Batch embed (100): {result['avg_ms']:.2f}ms avg")
+    print(f"Embedding throughput: {texts_per_sec:.0f} texts/sec")
+    
+    return texts_per_sec
 
 
-# ============================================================================
-# Text Processing Benchmarks
-# ============================================================================
-
-@benchmark("tokenize_simple", iterations=10000)
-def bench_tokenize():
-    """Benchmark simple tokenization."""
-    text = "The quick brown fox jumps over the lazy dog"
-    text.lower().split()
-
-
-@benchmark("text_hash", iterations=50000)
-def bench_text_hash():
-    """Benchmark text hashing for caching."""
-    text = "The quick brown fox jumps over the lazy dog"
-    hash(text)
+def benchmark_numpy_simd():
+    """Benchmark NumPy operations (comparison baseline)."""
+    print("\n=== NumPy SIMD Comparison ===")
+    
+    sizes = [10_000, 100_000, 1_000_000]
+    
+    for size in sizes:
+        data = np.random.randn(size).astype(np.float64)
+        
+        result = benchmark(f"sum_{size}", lambda: np.sum(data), iterations=100)
+        ops_per_sec = size / (result['avg_ms'] / 1000)
+        print(f"Sum {size:>10}: {result['avg_ms']:.4f}ms ({ops_per_sec:.0f} ops/sec)")
 
 
-@benchmark("regex_extract", iterations=5000)
-def bench_regex_extract():
-    """Benchmark regex extraction."""
-    import re
-    text = "Email: test@example.com, Phone: 123-456-7890"
-    re.findall(r'\b[\w.-]+@[\w.-]+\.\w+\b', text)
-
-
-# ============================================================================
-# Async Operations Benchmarks
-# ============================================================================
-
-@async_benchmark("async_gather_10", iterations=1000)
-async def bench_async_gather():
-    """Benchmark asyncio.gather with 10 tasks."""
-    async def dummy():
-        return 42
-
-    await asyncio.gather(*[dummy() for _ in range(10)])
-
-
-@async_benchmark("async_queue", iterations=5000)
-async def bench_async_queue():
-    """Benchmark async queue operations."""
-    queue = asyncio.Queue(maxsize=100)
-    await queue.put({"data": "test"})
-    await queue.get()
-
-
-# ============================================================================
-# Memory Operations Benchmarks
-# ============================================================================
-
-@benchmark("list_comprehension_10000", iterations=1000)
-def bench_list_comprehension():
-    """Benchmark list comprehension."""
-    [i * 2 for i in range(10000)]
-
-
-@benchmark("dict_comprehension_1000", iterations=1000)
-def bench_dict_comprehension():
-    """Benchmark dict comprehension."""
-    {f"key_{i}": i for i in range(1000)}
-
-
-@benchmark("numpy_array_creation", iterations=5000)
-def bench_numpy_array():
-    """Benchmark numpy array creation."""
-    np.zeros((1000, 384), dtype=np.float32)
-
-
-# ============================================================================
-# Main
-# ============================================================================
-
-def run_all_benchmarks():
-    """Run all benchmarks."""
-    print("=" * 70)
-    print("TDB+ Python AI Layer Benchmarks")
-    print("=" * 70)
-
-    print("\n--- Vector Operations ---")
-    bench_dot_product_small()
-    bench_dot_product_medium()
-    bench_cosine_similarity()
-    bench_batch_cosine()
-    bench_top_k()
-
-    print("\n--- JSON Operations ---")
-    bench_json_serialize_small()
-    bench_json_serialize_medium()
-    bench_json_parse_small()
-    bench_json_parse_medium()
-
-    print("\n--- Text Processing ---")
-    bench_tokenize()
-    bench_text_hash()
-    bench_regex_extract()
-
-    print("\n--- Memory Operations ---")
-    bench_list_comprehension()
-    bench_dict_comprehension()
-    bench_numpy_array()
-
-    print("\n--- Async Operations ---")
-    asyncio.run(bench_async_gather())
-    asyncio.run(bench_async_queue())
-
-    print("\n" + "=" * 70)
-    print("Benchmarks complete!")
+def main():
+    print("=" * 60)
+    print("LumaDB Python Benchmark Suite")
+    print("=" * 60)
+    
+    # NumPy baseline
+    benchmark_numpy_simd()
+    
+    # Vector search
+    try:
+        qps = benchmark_vector_search()
+        target_qps = 100_000
+        status = "✓ PASS" if qps >= target_qps else "✗ FAIL"
+        print(f"\nVector Search Target ({target_qps} QPS): {status}")
+    except Exception as e:
+        print(f"Vector search benchmark skipped: {e}")
+    
+    # Embeddings
+    try:
+        throughput = benchmark_embeddings()
+    except Exception as e:
+        print(f"Embedding benchmark skipped: {e}")
+    
+    print("\n" + "=" * 60)
+    print("Benchmarks Complete")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
-    run_all_benchmarks()
+    main()

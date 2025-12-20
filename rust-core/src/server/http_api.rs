@@ -48,13 +48,13 @@ pub async fn start(db: Arc<Database>, port_ch: u16, port_es: u16) -> crate::Resu
                           let headers_end = request_str.find("\r\n\r\n").map(|i| i + 4).unwrap_or(n);
 
                       // Check for ElasticSearch _search
-                     if (path.contains("/_search") || path.contains("sql")) && method == "POST" {
+                     if (path.contains("/_search") || path.contains("sql")) && *method == "POST" {
                          // Parse Body as JSON (Very simple mock parser)
                          let body_str = String::from_utf8_lossy(&buf[headers_end..n]);
                          
                          // Look for "query" and "match"
                          // This is a stub parser. In real generic impl we'd use serde_json
-                         let mut response_hits = Vec::new();
+                         let mut response_hits: Vec<String> = Vec::new();
                          
                          // For now, return all docs in "default" if no query, or filter if simple scan
                          // Mock response

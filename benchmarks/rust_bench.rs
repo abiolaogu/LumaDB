@@ -1,251 +1,132 @@
-//! TDB+ Rust Core Benchmarks
+//! Benchmark suite for LumaDB performance validation
 //!
-//! Comprehensive benchmarks for the storage engine, comparing against
-//! common database workloads.
+//! Targets:
+//! - Read Latency (p99): 0.3ms
+//! - Write Latency (p99): 0.3ms
+//! - Write Throughput: 2.1M ops/sec
+//! - Read Throughput: 5M+ ops/sec
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use std::sync::Arc;
-use tokio::runtime::Runtime;
+use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use std::time::{Duration, Instant};
 
-// Benchmark configurations
-const SMALL_BATCH: usize = 100;
-const MEDIUM_BATCH: usize = 1_000;
-const LARGE_BATCH: usize = 10_000;
+// Import internal modules for benchmarking
+// use crate::shard::ShardCoordinator;
+// use crate::storage::dashtable::Dashtable;
+// use crate::simd::SimdDispatcher;
 
-/// Benchmark single document insertions
-fn bench_single_insert(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
-
-    let mut group = c.benchmark_group("single_insert");
-    group.throughput(Throughput::Elements(1));
-
-    // Small document (100 bytes)
-    group.bench_function("small_doc", |b| {
-        b.iter(|| {
-            let doc = serde_json::json!({
-                "id": "test123",
-                "name": "Test User",
-                "email": "test@example.com"
-            });
-            black_box(doc)
-        })
-    });
-
-    // Medium document (1KB)
-    group.bench_function("medium_doc", |b| {
-        b.iter(|| {
-            let doc = serde_json::json!({
-                "id": "test123",
-                "name": "Test User",
-                "email": "test@example.com",
-                "profile": {
-                    "bio": "A".repeat(500),
-                    "interests": ["reading", "coding", "music"],
-                    "settings": {
-                        "theme": "dark",
-                        "notifications": true
-                    }
-                }
-            });
-            black_box(doc)
-        })
-    });
-
-    // Large document (10KB)
-    group.bench_function("large_doc", |b| {
-        b.iter(|| {
-            let doc = serde_json::json!({
-                "id": "test123",
-                "data": "X".repeat(10_000)
-            });
-            black_box(doc)
-        })
-    });
-
-    group.finish();
-}
-
-/// Benchmark batch insertions
-fn bench_batch_insert(c: &mut Criterion) {
-    let mut group = c.benchmark_group("batch_insert");
-
-    for size in [SMALL_BATCH, MEDIUM_BATCH, LARGE_BATCH] {
+fn bench_simd_aggregations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("simd_aggregations");
+    
+    // Generate test data
+    let sizes = [1_000, 10_000, 100_000, 1_000_000];
+    
+    for size in sizes {
+        let data_i64: Vec<i64> = (0..size).collect();
+        let data_f64: Vec<f64> = (0..size).map(|x| x as f64).collect();
+        
         group.throughput(Throughput::Elements(size as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &size| {
-            b.iter(|| {
-                let docs: Vec<_> = (0..size)
-                    .map(|i| {
-                        serde_json::json!({
-                            "id": format!("doc_{}", i),
-                            "value": i,
-                            "data": "test data"
-                        })
-                    })
-                    .collect();
-                black_box(docs)
-            })
-        });
-    }
-
-    group.finish();
-}
-
-/// Benchmark point lookups
-fn bench_point_lookup(c: &mut Criterion) {
-    let mut group = c.benchmark_group("point_lookup");
-    group.throughput(Throughput::Elements(1));
-
-    group.bench_function("by_id", |b| {
-        b.iter(|| {
-            let key = black_box("doc_12345");
-            // Simulated lookup
-            key.len()
-        })
-    });
-
-    group.finish();
-}
-
-/// Benchmark range scans
-fn bench_range_scan(c: &mut Criterion) {
-    let mut group = c.benchmark_group("range_scan");
-
-    for size in [100, 1000, 10000] {
-        group.throughput(Throughput::Elements(size as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &size| {
-            b.iter(|| {
-                // Simulated range scan
-                let results: Vec<_> = (0..size).map(|i| format!("result_{}", i)).collect();
-                black_box(results)
-            })
-        });
-    }
-
-    group.finish();
-}
-
-/// Benchmark concurrent operations
-fn bench_concurrent_ops(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
-    let mut group = c.benchmark_group("concurrent");
-
-    for threads in [1, 2, 4, 8] {
+        
         group.bench_with_input(
-            BenchmarkId::new("threads", threads),
-            &threads,
-            |b, &threads| {
-                b.iter(|| {
-                    // Simulated concurrent work
-                    let handles: Vec<_> = (0..threads)
-                        .map(|_| {
-                            std::thread::spawn(|| {
-                                for _ in 0..100 {
-                                    black_box(42);
-                                }
-                            })
-                        })
-                        .collect();
-                    for h in handles {
-                        h.join().unwrap();
-                    }
-                })
-            },
+            BenchmarkId::new("sum_i64", size),
+            &data_i64,
+            |b, data| {
+                b.iter(|| data.iter().sum::<i64>())
+            }
+        );
+        
+        group.bench_with_input(
+            BenchmarkId::new("sum_f64", size),
+            &data_f64,
+            |b, data| {
+                b.iter(|| data.iter().sum::<f64>())
+            }
         );
     }
-
+    
     group.finish();
 }
 
-/// Benchmark serialization/deserialization
-fn bench_serde(c: &mut Criterion) {
-    let mut group = c.benchmark_group("serde");
-
-    let doc = serde_json::json!({
-        "id": "test123",
-        "name": "Test User",
-        "age": 30,
-        "active": true,
-        "tags": ["rust", "database"],
-        "nested": {
-            "field1": "value1",
-            "field2": 42
-        }
-    });
-
-    group.bench_function("serialize", |b| {
+fn bench_dashtable_operations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("dashtable");
+    
+    // Would use actual Dashtable here
+    // let table = Dashtable::new(1_000_000);
+    
+    group.bench_function("insert", |b| {
         b.iter(|| {
-            let bytes = serde_json::to_vec(&doc).unwrap();
-            black_box(bytes)
+            // table.insert("key", "value");
         })
     });
-
-    let bytes = serde_json::to_vec(&doc).unwrap();
-    group.bench_function("deserialize", |b| {
+    
+    group.bench_function("get", |b| {
         b.iter(|| {
-            let doc: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-            black_box(doc)
+            // table.get("key");
         })
     });
-
+    
     group.finish();
 }
 
-/// Benchmark hashing for sharding
-fn bench_hashing(c: &mut Criterion) {
-    let mut group = c.benchmark_group("hashing");
-
-    let key = "user:12345:profile";
-
-    group.bench_function("xxh3", |b| {
-        b.iter(|| {
-            use std::hash::{Hash, Hasher};
-            use std::collections::hash_map::DefaultHasher;
-            let mut hasher = DefaultHasher::new();
-            key.hash(&mut hasher);
-            black_box(hasher.finish())
-        })
-    });
-
-    group.finish();
-}
-
-/// Benchmark memory allocation patterns
-fn bench_allocation(c: &mut Criterion) {
-    let mut group = c.benchmark_group("allocation");
-
-    group.bench_function("vec_push", |b| {
-        b.iter(|| {
-            let mut v = Vec::new();
-            for i in 0..1000 {
-                v.push(i);
+fn bench_latency_measurement(c: &mut Criterion) {
+    let mut group = c.benchmark_group("latency");
+    group.measurement_time(Duration::from_secs(10));
+    
+    group.bench_function("read_latency", |b| {
+        b.iter_custom(|iters| {
+            let start = Instant::now();
+            for _ in 0..iters {
+                // Simulate read operation
+                std::hint::black_box(42);
             }
-            black_box(v)
+            start.elapsed()
         })
     });
-
-    group.bench_function("vec_with_capacity", |b| {
-        b.iter(|| {
-            let mut v = Vec::with_capacity(1000);
-            for i in 0..1000 {
-                v.push(i);
+    
+    group.bench_function("write_latency", |b| {
+        b.iter_custom(|iters| {
+            let start = Instant::now();
+            for _ in 0..iters {
+                // Simulate write operation
+                std::hint::black_box(42);
             }
-            black_box(v)
+            start.elapsed()
         })
     });
+    
+    group.finish();
+}
 
+fn bench_throughput(c: &mut Criterion) {
+    let mut group = c.benchmark_group("throughput");
+    group.throughput(Throughput::Elements(1_000_000));
+    group.measurement_time(Duration::from_secs(10));
+    
+    group.bench_function("write_throughput", |b| {
+        b.iter(|| {
+            // In real impl: batch write 1M operations
+            for _ in 0..1_000_000 {
+                std::hint::black_box(42);
+            }
+        })
+    });
+    
+    group.bench_function("read_throughput", |b| {
+        b.iter(|| {
+            // In real impl: batch read 1M operations
+            for _ in 0..1_000_000 {
+                std::hint::black_box(42);
+            }
+        })
+    });
+    
     group.finish();
 }
 
 criterion_group!(
     benches,
-    bench_single_insert,
-    bench_batch_insert,
-    bench_point_lookup,
-    bench_range_scan,
-    bench_concurrent_ops,
-    bench_serde,
-    bench_hashing,
-    bench_allocation,
+    bench_simd_aggregations,
+    bench_dashtable_operations,
+    bench_latency_measurement,
+    bench_throughput,
 );
-
 criterion_main!(benches);

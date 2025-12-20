@@ -35,12 +35,12 @@ tokio = { version = "1.34", features = ["full"] }
 async-trait = "0.1"
 
 # Node.js Bindings
-napi = { version = "2.14", features = ["async"] }
-napi-derive = "2.14"
+# napi = { version = "2.14", features = ["async"] }
+# napi-derive = "2.14"
 
 # FFI
-pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
-uniffi = { version = "0.25", optional = true }
+# pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
+# uniffi = { version = "0.25", optional = true }
 
 # Logging & metrics
 tracing = "0.1"
@@ -56,7 +56,7 @@ rand = "0.8"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 # Scripting
-rhai = { version = "1.16", features = ["sync", "serde"] }
+# rhai = { version = "1.16", features = ["sync", "serde"] }
 libc = "0.2.178"
 
 # Protocol Support
@@ -67,8 +67,8 @@ hex = "0.4"
 bson = "2.9"
 sha2 = "0.10"
 md5 = "0.7"
-tokio-postgres = "0.7"
-pgwire = "0.19"
+# tokio-postgres = "0.7"  # Disabled - pulls array-init which has DNS issues
+# pgwire = "0.19"           # Disabled - pulls array-init which has DNS issues
 # rand = "0.8"  # Replaced by internal crypto
 # md5 = "0.7"   # Replaced by internal crypto
 
@@ -84,8 +84,8 @@ proptest = "1.4"
 [features]
 default = ["compression"]
 compression = []
-python = ["pyo3"]
-uniffi-bindings = ["uniffi"]
+# python = ["pyo3"]
+# uniffi-bindings = ["uniffi"]
 dpdk = []    # Enable DPDK kernel-bypass networking
 rdma = []    # Enable RDMA/InfiniBand support
 

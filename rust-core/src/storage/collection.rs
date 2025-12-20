@@ -60,12 +60,12 @@ impl Collection {
 
         // Get shard for this key
         let shard = self.shards.get_shard(&key);
-        shard.put(key, value).await?;
+        shard.put(&key, &value).await?;
 
         // Index vector if present
         if let Some(vec) = vector {
             // Note: DocumentId in VectorIndex is currently String.
-            shard.index_vector(id.clone(), vec)?;
+            shard.index_vector(&key, &vec).await?;
         }
 
         // Update secondary indexes
@@ -108,7 +108,7 @@ impl Collection {
 
         doc.increment_revision();
         let value = rmp_serde::to_vec(&doc)?;
-        shard.put(key, value).await?;
+        shard.put(&key, &value).await?;
 
         // Update indexes
         self.update_indexes(id, &doc);
@@ -168,7 +168,7 @@ impl Collection {
         let key = self.doc_key(&doc.id);
         let value = rmp_serde::to_vec(&doc)?;
         let shard = self.shards.get_shard(&key);
-        shard.put(key, value).await?;
+        shard.put(&key, &value).await?;
         Ok(())
     }
 
