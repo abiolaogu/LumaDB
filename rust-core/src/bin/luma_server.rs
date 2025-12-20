@@ -15,13 +15,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = Arc::new(Database::open(config).await?);
     println!("Database initialized at ./data");
 
-    // 2. Start Servers
-    let server_config = server::ServerConfig {
-        pg_port: 5432,
-        mysql_port: 3306,
-        mongo_port: 27017,
-        cql_port: 9042,
-    };
+    // 2. Start Servers (all protocols including TSDB: Prometheus, InfluxDB, Druid)
+    let server_config = server::ServerConfig::default();
     
     server::start_server(db.clone(), server_config).await?;
 

@@ -9,6 +9,9 @@ pub mod kdb;
 pub mod http_api;
 pub mod translator;
 pub mod query;
+pub mod prometheus;  // NEW: Full Prometheus drop-in replacement
+pub mod influxdb;    // NEW: Full InfluxDB drop-in replacement
+pub mod druid;       // NEW: Full Druid drop-in replacement
 
 use std::sync::Arc;
 use crate::Database;
@@ -20,6 +23,9 @@ pub struct ServerConfig {
     pub mysql_port: u16,
     pub mongo_port: u16,
     pub cql_port: u16,
+    pub prometheus_port: u16,
+    pub influxdb_port: u16,
+    pub druid_port: u16,  // NEW: Druid port
 }
 
 impl Default for ServerConfig {
@@ -29,6 +35,9 @@ impl Default for ServerConfig {
             mysql_port: 3306,
             mongo_port: 27017,
             cql_port: 9042,
+            prometheus_port: 9090,
+            influxdb_port: 8086,
+            druid_port: 8888,  // NEW: Druid default
         }
     }
 }
@@ -44,6 +53,9 @@ pub async fn start_server(db: Arc<Database>, config: ServerConfig) -> crate::Res
     let db_aero = db.clone();
     let db_kdb = db.clone();
     let db_http = db.clone();
+    let db_prometheus = db.clone();
+    let db_influxdb = db.clone();
+    let db_druid = db.clone();  // NEW: Druid
 
     // Postgres - Disabled (pgwire dependency removed)
     // tokio::spawn(async move {
@@ -109,6 +121,29 @@ pub async fn start_server(db: Arc<Database>, config: ServerConfig) -> crate::Res
          }
     });
 
+    // NEW: Prometheus (drop-in replacement) - Port 9090
+    let prom_port = config.prometheus_port;
+    tokio::spawn(async move {
+        if let Err(e) = prometheus::start(db_prometheus, prom_port).await {
+            eprintln!("Prometheus server error: {}", e);
+        }
+    });
+
+    // NEW: InfluxDB (drop-in replacement) - Port 8086
+    let influx_port = config.influxdb_port;
+    tokio::spawn(async move {
+        if let Err(e) = influxdb::start(db_influxdb, influx_port).await {
+            eprintln!("InfluxDB server error: {}", e);
+        }
+    });
+
+    // NEW: Druid (drop-in replacement) - Port 8888
+    let druid_port = config.druid_port;
+    tokio::spawn(async move {
+        if let Err(e) = druid::start(db_druid, druid_port).await {
+            eprintln!("Druid server error: {}", e);
+        }
+    });
+
     Ok(())
 }
-
