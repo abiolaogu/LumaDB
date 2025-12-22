@@ -82,6 +82,8 @@ pub mod io;          // io_uring and direct I/O
 pub mod latency;     // Predictable latency SLAs
 pub mod tsdb;        // NEW: Unified TSDB (Prometheus/InfluxDB/Druid compatible)
 pub mod vector;      // NEW: Ultra-high performance vector search (2.5M+ QPS)
+pub mod tdengine;    // TDengine-compatible window functions and SQL parsing
+pub mod dialects;    // Universal multi-query language support (InfluxQL, Flux, PromQL, etc.)
 // pub mod ffi;         // FFI bindings for Go/Python (Moved to top)
 // pub mod node_bindings; // Node.js bindings using napi-rs (Disabled for offline build)
 // pub mod scripting;     // Stored Procedures & Triggers (Disabled for offline build)

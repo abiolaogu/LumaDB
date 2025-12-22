@@ -64,14 +64,27 @@ func (r *Router) RouteRead(ctx context.Context, collection string, key []byte) (
 		return "localhost", nil
 	}
 
-	// Load balance across replicas
-	replicas := append([]string{shard.Leader}, shard.Replicas...)
-	if len(replicas) == 0 {
+	// Build replicas list, only including non-empty addresses
+	var replicas []string
+	if shard.Leader != "" {
+		replicas = append(replicas, shard.Leader)
+	}
+	replicas = append(replicas, shard.Replicas...)
+
+	// Filter out empty strings
+	validReplicas := make([]string, 0, len(replicas))
+	for _, r := range replicas {
+		if r != "" {
+			validReplicas = append(validReplicas, r)
+		}
+	}
+
+	if len(validReplicas) == 0 {
 		return "localhost", nil
 	}
 
-	idx := atomic.AddUint64(&r.roundRobin, 1) % uint64(len(replicas))
-	return replicas[idx], nil
+	idx := atomic.AddUint64(&r.roundRobin, 1) % uint64(len(validReplicas))
+	return validReplicas[idx], nil
 }
 
 // RouteWrite routes a write request (must go to leader)

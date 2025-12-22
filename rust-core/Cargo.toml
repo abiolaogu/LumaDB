@@ -54,6 +54,7 @@ uuid = { version = "1.6", features = ["v4", "fast-rng"] }
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.8"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
+regex = "1.10"
 
 # Scripting
 # rhai = { version = "1.16", features = ["sync", "serde"] }

@@ -699,6 +699,7 @@ dependencies = [
  "prometheus",
  "proptest",
  "rand 0.8.5",
+ "regex",
  "rmp-serde",
  "serde",
  "serde_json",
