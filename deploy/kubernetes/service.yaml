@@ -1,0 +1,85 @@
+# LumaDB Kubernetes Services
+---
+# Headless service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: lumadb-headless
+  namespace: lumadb
+  labels:
+    app.kubernetes.io/name: lumadb
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  selector:
+    app: lumadb
+  ports:
+    - name: rest
+      port: 8080
+      targetPort: rest
+    - name: kafka
+      port: 9092
+      targetPort: kafka
+    - name: graphql
+      port: 4000
+      targetPort: graphql
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+    - name: raft
+      port: 9100
+      targetPort: raft
+---
+# ClusterIP service for internal access
+apiVersion: v1
+kind: Service
+metadata:
+  name: lumadb
+  namespace: lumadb
+  labels:
+    app.kubernetes.io/name: lumadb
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app: lumadb
+  ports:
+    - name: rest
+      port: 8080
+      targetPort: rest
+    - name: kafka
+      port: 9092
+      targetPort: kafka
+    - name: graphql
+      port: 4000
+      targetPort: graphql
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+---
+# LoadBalancer service for external access
+apiVersion: v1
+kind: Service
+metadata:
+  name: lumadb-external
+  namespace: lumadb
+  labels:
+    app.kubernetes.io/name: lumadb
+    app.kubernetes.io/component: database
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  selector:
+    app: lumadb
+  ports:
+    - name: rest
+      port: 8080
+      targetPort: rest
+    - name: kafka
+      port: 9092
+      targetPort: kafka
+    - name: graphql
+      port: 4000
+      targetPort: graphql
