@@ -1,0 +1,8 @@
+# LumaDB Kubernetes Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lumadb
+  labels:
+    app.kubernetes.io/name: lumadb
+    app.kubernetes.io/managed-by: kubectl

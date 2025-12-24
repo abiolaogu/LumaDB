@@ -1,0 +1,43 @@
+# LumaDB RBAC Configuration
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lumadb
+  namespace: lumadb
+  labels:
+    app.kubernetes.io/name: lumadb
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lumadb
+  namespace: lumadb
+  labels:
+    app.kubernetes.io/name: lumadb
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lumadb
+  namespace: lumadb
+  labels:
+    app.kubernetes.io/name: lumadb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lumadb
+subjects:
+  - kind: ServiceAccount
+    name: lumadb
+    namespace: lumadb

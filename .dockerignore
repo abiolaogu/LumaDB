@@ -1,0 +1,29 @@
+# Build artifacts
+crates/target/
+sdks/rust/target/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Documentation (keep essentials)
+docs/
+*.md
+!README.md
+
+# Tests
+tests/
+**/test_*
+**/*_test.rs
+
+# Development
+.env
+.env.local
+*.log

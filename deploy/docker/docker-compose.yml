@@ -1,35 +1,50 @@
-# deploy/docker/docker-compose.yml
+# LumaDB Docker Compose Configuration
+# Development and Production environments
 
 version: '3.8'
 
 services:
+  # ===========================================================================
+  # LumaDB Server
+  # ===========================================================================
   lumadb:
-    # Use ghcr.io image or build locally
-    image: ghcr.io/abiolaogu/lumadb:latest
     build:
-      context: ../../
+      context: ../..
       dockerfile: deploy/docker/Dockerfile
+      target: production
+    image: ghcr.io/abiolaogu/lumadb:latest
     container_name: lumadb
+    hostname: lumadb
+    
     ports:
-      - "8080:8080" # REST API
-      - "9092:9092" # Kafka Protocol
-      - "4000:4000" # GraphQL
-      - "5432:5432" # PostgreSQL Protocol
+      - "8080:8080"   # REST API
+      - "9092:9092"   # Kafka Protocol
+      - "4000:4000"   # GraphQL
+      - "50051:50051" # gRPC
+      - "9100:9100"   # Raft / Metrics
+    
     environment:
       - LUMADB_NODE_ID=1
       - LUMADB_DATA_DIR=/data
       - LUMADB_LOG_LEVEL=info
+      - LUMADB_REST_PORT=8080
+      - LUMADB_KAFKA_PORT=9092
+      - LUMADB_GRAPHQL_PORT=4000
+      - LUMADB_GRPC_PORT=50051
+      - RUST_BACKTRACE=0
+    
     volumes:
       - lumadb-data:/data
       - lumadb-logs:/var/log/lumadb
-      # Mount config if needed, or rely on image default
-      # - ./configs:/etc/lumadb:ro
+      - ../../configs:/etc/lumadb:ro
+    
     healthcheck:
-      # Distroless might not have curl, adjust if needed or use internal health check
-      test: [ "CMD", "/usr/local/bin/lumadb", "health" ]
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
+    
     deploy:
       resources:
         limits:
@@ -38,6 +53,8 @@ services:
         reservations:
           cpus: '2'
           memory: 4G
+    
+    # Security hardening
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -47,7 +64,164 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=100M
+    
+    restart: unless-stopped
+    
+    networks:
+      - lumadb-network
 
+  # ===========================================================================
+  # LumaDB 3-Node Cluster (for development/testing)
+  # ===========================================================================
+  lumadb-node1:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      target: production
+    image: ghcr.io/abiolaogu/lumadb:latest
+    container_name: lumadb-node1
+    hostname: lumadb-node1
+    profiles:
+      - cluster
+    
+    ports:
+      - "8081:8080"
+      - "9093:9092"
+    
+    environment:
+      - LUMADB_NODE_ID=1
+      - LUMADB_DATA_DIR=/data
+      - LUMADB_LOG_LEVEL=info
+      - LUMADB_CLUSTER_PEERS=lumadb-node1:9100,lumadb-node2:9100,lumadb-node3:9100
+    
+    volumes:
+      - lumadb-node1-data:/data
+    
+    networks:
+      - lumadb-network
+
+  lumadb-node2:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      target: production
+    image: ghcr.io/abiolaogu/lumadb:latest
+    container_name: lumadb-node2
+    hostname: lumadb-node2
+    profiles:
+      - cluster
+    
+    ports:
+      - "8082:8080"
+      - "9094:9092"
+    
+    environment:
+      - LUMADB_NODE_ID=2
+      - LUMADB_DATA_DIR=/data
+      - LUMADB_LOG_LEVEL=info
+      - LUMADB_CLUSTER_PEERS=lumadb-node1:9100,lumadb-node2:9100,lumadb-node3:9100
+    
+    volumes:
+      - lumadb-node2-data:/data
+    
+    networks:
+      - lumadb-network
+
+  lumadb-node3:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      target: production
+    image: ghcr.io/abiolaogu/lumadb:latest
+    container_name: lumadb-node3
+    hostname: lumadb-node3
+    profiles:
+      - cluster
+    
+    ports:
+      - "8083:8080"
+      - "9095:9092"
+    
+    environment:
+      - LUMADB_NODE_ID=3
+      - LUMADB_DATA_DIR=/data
+      - LUMADB_LOG_LEVEL=info
+      - LUMADB_CLUSTER_PEERS=lumadb-node1:9100,lumadb-node2:9100,lumadb-node3:9100
+    
+    volumes:
+      - lumadb-node3-data:/data
+    
+    networks:
+      - lumadb-network
+
+  # ===========================================================================
+  # Monitoring Stack (optional)
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    profiles:
+      - monitoring
+    
+    ports:
+      - "9090:9090"
+    
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    
+    networks:
+      - lumadb-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    profiles:
+      - monitoring
+    
+    ports:
+      - "3000:3000"
+    
+    volumes:
+      - grafana-data:/var/lib/grafana
+    
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    
+    networks:
+      - lumadb-network
+
+# ===========================================================================
+# Networks
+# ===========================================================================
+networks:
+  lumadb-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ===========================================================================
+# Volumes
+# ===========================================================================
 volumes:
   lumadb-data:
+    driver: local
   lumadb-logs:
+    driver: local
+  lumadb-node1-data:
+    driver: local
+  lumadb-node2-data:
+    driver: local
+  lumadb-node3-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

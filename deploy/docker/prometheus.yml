@@ -1,0 +1,18 @@
+# Prometheus configuration for LumaDB monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'lumadb'
+    static_configs:
+      - targets: ['lumadb:8080']
+    metrics_path: /metrics
+    
+  - job_name: 'lumadb-cluster'
+    static_configs:
+      - targets: 
+        - 'lumadb-node1:8080'
+        - 'lumadb-node2:8080'
+        - 'lumadb-node3:8080'
+    metrics_path: /metrics

@@ -46,3 +46,34 @@ rust-core/target/
 # Test Data
 tdb_test_data*/
 
+
+# Build artifacts
+/crates/target/
+/sdks/rust/target/
+/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+/var/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/

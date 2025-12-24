@@ -1,0 +1,37 @@
+# LumaDB ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lumadb-config
+  namespace: lumadb
+  labels:
+    app.kubernetes.io/name: lumadb
+    app.kubernetes.io/component: config
+data:
+  lumadb.yaml: |
+    server:
+      node_id: ${LUMADB_NODE_ID}
+      data_dir: /data
+      
+    api:
+      rest:
+        host: "0.0.0.0"
+        port: 8080
+      graphql:
+        host: "0.0.0.0"
+        port: 4000
+      grpc:
+        host: "0.0.0.0"
+        port: 50051
+        
+    kafka:
+      host: "0.0.0.0"
+      port: 9092
+      
+    raft:
+      port: 9100
+      peers: ${LUMADB_CLUSTER_PEERS}
+      
+    logging:
+      level: info
+      format: json

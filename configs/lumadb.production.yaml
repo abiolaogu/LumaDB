@@ -1,0 +1,198 @@
+# LumaDB Production Configuration
+# Ultra-fast unified database - 100x faster streaming
+
+# ===========================================================================
+# Server Configuration
+# ===========================================================================
+server:
+  node_id: ${LUMADB_NODE_ID:-1}
+  data_dir: ${LUMADB_DATA_DIR:-/var/lib/lumadb}
+  log_dir: ${LUMADB_LOG_DIR:-/var/log/lumadb}
+  
+# ===========================================================================
+# API Configuration
+# ===========================================================================
+api:
+  rest:
+    host: "0.0.0.0"
+    port: ${LUMADB_REST_PORT:-8080}
+    workers: ${LUMADB_REST_WORKERS:-0}  # 0 = auto-detect CPU cores
+    max_connections: 10000
+    request_timeout_secs: 30
+    
+  graphql:
+    host: "0.0.0.0"
+    port: ${LUMADB_GRAPHQL_PORT:-4000}
+    introspection: true
+    playground: ${LUMADB_GRAPHQL_PLAYGROUND:-false}
+    
+  grpc:
+    host: "0.0.0.0"
+    port: ${LUMADB_GRPC_PORT:-50051}
+    max_message_size: 16777216  # 16MB
+
+# ===========================================================================
+# Kafka Protocol Configuration
+# ===========================================================================
+kafka:
+  host: "0.0.0.0"
+  port: ${LUMADB_KAFKA_PORT:-9092}
+  num_partitions: 3
+  replication_factor: 1
+  
+  # Performance tuning
+  batch_size: 16384
+  linger_ms: 5
+  buffer_memory: 33554432  # 32MB
+  
+  # Retention
+  retention_ms: 604800000  # 7 days
+  retention_bytes: -1      # Unlimited
+  segment_bytes: 1073741824  # 1GB
+
+# ===========================================================================
+# Storage Configuration
+# ===========================================================================
+storage:
+  # LSM-Tree settings
+  lsm:
+    memtable_size: 67108864  # 64MB
+    level0_compaction_trigger: 4
+    max_levels: 7
+    compression: lz4
+    
+  # Write-ahead log
+  wal:
+    enabled: true
+    sync_mode: async  # sync, async, none
+    segment_size: 67108864  # 64MB
+    
+  # Block cache
+  cache:
+    block_cache_size: 1073741824  # 1GB
+    index_cache_size: 268435456   # 256MB
+    
+  # Vector storage (HNSW)
+  vector:
+    m: 16
+    ef_construction: 200
+    ef_search: 50
+    
+  # Full-text search
+  fulltext:
+    memory_budget: 268435456  # 256MB
+    
+  # Columnar storage (Arrow)
+  columnar:
+    row_group_size: 65536
+    compression: zstd
+    dictionary_encoding: true
+
+# ===========================================================================
+# Streaming Engine Configuration (100x Performance)
+# ===========================================================================
+streaming:
+  # Thread-per-core reactor
+  reactor_threads: ${LUMADB_REACTOR_THREADS:-0}  # 0 = auto
+  
+  # I/O settings
+  io_depth: 256
+  use_io_uring: true
+  
+  # Batching
+  batch_size: 1000
+  batch_timeout_us: 100
+  
+  # Memory pools
+  record_pool_size: 1048576
+  batch_pool_size: 8192
+  
+  # Network
+  socket_send_buffer: 1048576
+  socket_recv_buffer: 1048576
+
+# ===========================================================================
+# Query Engine Configuration
+# ===========================================================================
+query:
+  max_concurrent_queries: 100
+  query_timeout_secs: 300
+  memory_limit: 2147483648  # 2GB
+  
+  # Optimizer
+  optimizer:
+    enable_predicate_pushdown: true
+    enable_projection_pushdown: true
+    enable_join_reordering: true
+    
+  # Executor
+  executor:
+    parallel_degree: ${LUMADB_QUERY_PARALLELISM:-0}  # 0 = auto
+
+# ===========================================================================
+# Raft Consensus Configuration
+# ===========================================================================
+raft:
+  node_id: ${LUMADB_NODE_ID:-1}
+  port: ${LUMADB_RAFT_PORT:-9100}
+  
+  # Cluster peers
+  peers: ${LUMADB_CLUSTER_PEERS:-}
+  
+  # Timing
+  election_timeout_min_ms: 150
+  election_timeout_max_ms: 300
+  heartbeat_interval_ms: 50
+  
+  # Replication
+  max_inflight_reqs: 100
+  snapshot_threshold: 10000
+
+# ===========================================================================
+# Security Configuration
+# ===========================================================================
+security:
+  # Authentication
+  auth_enabled: ${LUMADB_AUTH_ENABLED:-false}
+  auth_method: ${LUMADB_AUTH_METHOD:-jwt}
+
+  # JWT Configuration
+  # CRITICAL: Set LUMADB_JWT_SECRET in production!
+  jwt_secret: ${LUMADB_JWT_SECRET:-}
+  jwt_expiration_secs: ${LUMADB_JWT_EXPIRATION:-86400}
+
+  # TLS
+  tls_enabled: ${LUMADB_TLS_ENABLED:-false}
+  tls_cert_path: ${LUMADB_TLS_CERT:-}
+  tls_key_path: ${LUMADB_TLS_KEY:-}
+
+  # Audit logging
+  audit_enabled: ${LUMADB_AUDIT_ENABLED:-false}
+
+# ===========================================================================
+# Logging Configuration
+# ===========================================================================
+logging:
+  level: ${LUMADB_LOG_LEVEL:-info}
+  format: ${LUMADB_LOG_FORMAT:-json}
+  
+  # Output
+  stdout: true
+  file:
+    enabled: true
+    path: ${LUMADB_LOG_DIR:-/var/log/lumadb}/lumadb.log
+    max_size_mb: 100
+    max_files: 10
+    compress: true
+
+# ===========================================================================
+# Metrics Configuration
+# ===========================================================================
+metrics:
+  enabled: true
+  endpoint: /metrics
+  
+  # Prometheus
+  prometheus:
+    enabled: true
+    namespace: lumadb

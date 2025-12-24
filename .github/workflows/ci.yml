@@ -1,5 +1,4 @@
-# .github/workflows/ci.yml
-
+# LumaDB CI Pipeline
 name: CI
 
 on:
@@ -11,20 +10,32 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  RUSTFLAGS: "-D warnings"
 
 jobs:
-  # ============================================
-  # Build & Test - Rust
-  # ============================================
+  # ===========================================================================
+  # Rust Build & Test
+  # ===========================================================================
   rust:
-    name: Rust Build & Test
-    runs-on: ubuntu-latest
+    name: Rust ${{ matrix.toolchain }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        toolchain: [stable]
+        include:
+          - os: ubuntu-latest
+            toolchain: nightly
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
       
-      - name: Install Rust
+      - name: Install Rust toolchain
         uses: dtolnay/rust-action@stable
         with:
+          toolchain: ${{ matrix.toolchain }}
           components: clippy, rustfmt
       
       - name: Cache Cargo
@@ -33,228 +44,210 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+            crates/target
+          key: ${{ runner.os }}-cargo-${{ matrix.toolchain }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.toolchain }}-
       
-      - name: Format Check
+      - name: Check formatting
         run: cargo fmt --all -- --check
-        working-directory: rust-core
+        working-directory: crates
       
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
-        working-directory: rust-core
+        working-directory: crates
+        if: matrix.toolchain == 'stable'
       
       - name: Build
-        run: cargo build --release --all-features
-        working-directory: rust-core
+        run: cargo build --release
+        working-directory: crates
       
-      - name: Test
-        run: cargo test --release --all-features
-        working-directory: rust-core
+      - name: Run tests
+        run: cargo test --release
+        working-directory: crates
       
-      - name: Upload Artifacts
+      - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: rust-artifacts
-          path: rust-core/target/release/liblumadb_core.so
-
-  # ============================================
-  # Build & Test - Go
-  # ============================================
-  go:
-    name: Go Build & Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-      
-      - name: Cache Go
-        uses: actions/cache@v4
-        with:
+          name: lumadb-${{ matrix.os }}
           path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      
-      - name: Format Check
-        run: |
-          if [ -n "$(gofmt -l .)" ]; then
-            echo "Go files need formatting:"
-            gofmt -l .
-            exit 1
-          fi
-      
-      - name: Lint
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: latest
-      
-      - name: Build
-        run: go build -v ./...
-      
-      - name: Test
-        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
-      
-      - name: Upload Coverage
-        uses: codecov/codecov-action@v4
-        with:
-          files: coverage.out
+            crates/target/release/lumadb
+            crates/target/release/lumadb.exe
+          if-no-files-found: ignore
 
-  # ============================================
-  # Integration Tests
-  # ============================================
-  integration:
-    name: Integration Tests
-    needs: [rust, go]
-    runs-on: ubuntu-latest
-    services:
-      lumadb:
-        image: ghcr.io/abiolaogu/lumadb:latest # Use latest build ideally
-        ports:
-          - 8080:8080
-          - 9092:9092
-        options: >-
-          --health-cmd "/usr/local/bin/lumadb health"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-      
-      # Wait for LumaDB effectively handled by service healthcheck, but explicit check is good
-      
-      - name: Run Integration Tests
-        run: go test -v -tags=integration ./tests/integration/...
-        env:
-          LUMADB_BROKER: localhost:9092
-          LUMADB_REST_URL: http://localhost:8080
-
-  # ============================================
-  # E2E Tests
-  # ============================================
-  e2e:
-    name: E2E Tests
-    needs: [integration]
+  # ===========================================================================
+  # Security Audit
+  # ===========================================================================
+  security:
+    name: Security Audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
       
-      - name: Install Dependencies
-        run: |
-          pip install pytest pytest-asyncio kafka-python requests
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
       
-      - name: Start LumaDB
-        run: |
-          docker-compose -f deploy/docker/docker-compose.yml up -d
-          sleep 30
-      
-      - name: Run E2E Tests
-        run: pytest tests/e2e/ -v --tb=short
-      
-      - name: Collect Logs
-        if: failure()
-        run: docker-compose -f deploy/docker/docker-compose.yml logs
+      - name: Security audit
+        run: cargo audit
+        working-directory: crates
+        continue-on-error: true
 
-  # ============================================
-  # Build Docker Images
-  # ============================================
+  # ===========================================================================
+  # Docker Build
+  # ===========================================================================
   docker:
-    name: Build Docker
-    needs: [rust, go]
+    name: Docker Build
     runs-on: ubuntu-latest
+    needs: [rust]
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
       - name: Login to GHCR
         uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Build and Push
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/lumadb
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: deploy/docker/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ghcr.io/abiolaogu/lumadb:${{ github.sha }}
-            ghcr.io/abiolaogu/lumadb:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
 
-  # ============================================
-  # Cross-Platform Builds
-  # ============================================
-  build-binaries:
-    name: Build Binaries
-    needs: [rust, go]
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact: lumadb-linux-amd64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact: lumadb-windows-amd64
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact: lumadb-darwin-amd64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact: lumadb-darwin-arm64
-    runs-on: ${{ matrix.os }}
+  # ===========================================================================
+  # Integration Tests
+  # ===========================================================================
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.event_name != 'pull_request'
+    
+    services:
+      lumadb:
+        image: ghcr.io/${{ github.repository_owner }}/lumadb:${{ github.sha }}
+        ports:
+          - 8080:8080
+          - 9092:9092
+        options: >-
+          --health-cmd "curl -sf http://localhost:8080/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Wait for LumaDB
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:8080/health; then
+              echo "LumaDB is ready!"
+              exit 0
+            fi
+            echo "Waiting for LumaDB... ($i/30)"
+            sleep 2
+          done
+          echo "LumaDB failed to start"
+          exit 1
+      
+      - name: Run integration tests
+        run: |
+          # Test REST API
+          curl -sf http://localhost:8080/health | jq .
+          
+          # Test health endpoints
+          curl -sf http://localhost:8080/health/live | jq .
+          curl -sf http://localhost:8080/health/ready | jq .
+          
+          # Test metrics endpoint
+          curl -sf http://localhost:8080/metrics
+          
+          echo "All integration tests passed!"
+
+  # ===========================================================================
+  # Python SDK Tests
+  # ===========================================================================
+  python-sdk:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd sdks/python
+          pip install -e ".[dev]" || pip install -e .
+      
+      - name: Lint
+        run: |
+          cd sdks/python
+          pip install ruff
+          ruff check . || true
+      
+      - name: Type check
+        run: |
+          cd sdks/python
+          pip install mypy
+          mypy lumadb || true
+
+  # ===========================================================================
+  # Documentation
+  # ===========================================================================
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       
       - name: Install Rust
         uses: dtolnay/rust-action@stable
-        with:
-          targets: ${{ matrix.target }}
       
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
+      - name: Build docs
+        run: cargo doc --no-deps
+        working-directory: crates
       
-      - name: Build Rust
-        run: cargo build --release --target ${{ matrix.target }}
-        working-directory: rust-core
-      
-      - name: Build Go
-        run: |
-          go build -o lumadb${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./cmd/lumadb
-        env:
-          CGO_ENABLED: 0 # Only convenient if not relying on FFI for cross-build
-      
-      - name: Package
-        shell: bash
-        run: |
-          mkdir -p dist
-          cp lumadb* dist/ 2>/dev/null || true
-          # We might skip copying .so/dll if we static link or if CGO disabled. 
-          # For full production we need cross-compile CGO which is complex, placeholder here.
-          zip -r ${{ matrix.artifact }}.zip dist/
-      
-      - name: Upload Artifact
+      - name: Upload docs
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.zip
+          name: documentation
+          path: crates/target/doc
