@@ -170,6 +170,65 @@ impl MigrationTool {
         self.import_from_source(source, target_collection).await
     }
 
+    /// Import from Weaviate
+    pub async fn import_from_weaviate(
+        &self,
+        url: &str,
+        class_name: &str,
+        api_key: Option<&str>,
+        target: Option<&str>,
+    ) -> crate::Result<MigrationStats> {
+        let source = if let Some(key) = api_key {
+            MigrationSource::weaviate_with_key(url, class_name, key)
+        } else {
+            MigrationSource::weaviate(url, class_name)
+        };
+        let target_collection = target.unwrap_or(class_name);
+        self.import_from_source(source, target_collection).await
+    }
+
+    /// Import from Milvus
+    pub async fn import_from_milvus(
+        &self,
+        host: &str,
+        port: u16,
+        collection: &str,
+        target: Option<&str>,
+    ) -> crate::Result<MigrationStats> {
+        let source = MigrationSource::milvus(host, port, collection);
+        let target_collection = target.unwrap_or(collection);
+        self.import_from_source(source, target_collection).await
+    }
+
+    /// Import from Milvus with authentication
+    pub async fn import_from_milvus_with_auth(
+        &self,
+        host: &str,
+        port: u16,
+        collection: &str,
+        username: &str,
+        password: &str,
+        use_tls: bool,
+        target: Option<&str>,
+    ) -> crate::Result<MigrationStats> {
+        let source = MigrationSource::milvus_with_auth(host, port, collection, username, password, use_tls);
+        let target_collection = target.unwrap_or(collection);
+        self.import_from_source(source, target_collection).await
+    }
+
+    /// Import from Zilliz Cloud
+    pub async fn import_from_zilliz(
+        &self,
+        endpoint: &str,
+        collection: &str,
+        api_key: &str,
+        target: Option<&str>,
+    ) -> crate::Result<MigrationStats> {
+        let source = MigrationSource::zilliz(endpoint, collection, api_key);
+        let target_collection = target.unwrap_or(collection);
+        self.import_from_source(source, target_collection).await
+    }
+
     /// Generic import from any source
     pub async fn import_from_source(
         &self,

@@ -5,7 +5,17 @@
 //! - **Pinecone**: Full REST API compatibility
 //! - **MongoDB Atlas Vector Search**: Wire protocol with $vectorSearch support
 //!
-//! # Usage
+//! # Migration Support
+//!
+//! Migrate data from other vector databases to LumaDB:
+//! - **Qdrant**: REST API-based migration
+//! - **Pinecone**: Full index export with namespaces
+//! - **MongoDB**: Atlas Vector Search collections
+//! - **Weaviate**: GraphQL API-based class migration
+//! - **Milvus**: REST API with schema auto-detection
+//! - **Zilliz Cloud**: Managed Milvus with API key auth
+//!
+//! # Compatibility Server Usage
 //!
 //! ```rust,ignore
 //! use lumadb_compat::{QdrantServer, PineconeServer, MongoDBServer};
@@ -18,6 +28,27 @@
 //!
 //! // Start MongoDB-compatible server on port 27017
 //! let mongodb = MongoDBServer::new(storage.clone()).bind("0.0.0.0:27017");
+//! ```
+//!
+//! # Migration Tool Usage
+//!
+//! ```rust,ignore
+//! use lumadb_compat::{MigrationTool, MigrationSource};
+//!
+//! let tool = MigrationTool::new(storage.clone());
+//!
+//! // Migrate from Weaviate
+//! tool.import_from_weaviate("http://localhost:8080", "Articles", None, Some("articles")).await?;
+//!
+//! // Migrate from Milvus
+//! tool.import_from_milvus("localhost", 19530, "my_collection", None).await?;
+//!
+//! // Migrate from Zilliz Cloud
+//! tool.import_from_zilliz("https://your-instance.zillizcloud.com", "vectors", "api-key", None).await?;
+//!
+//! // Or use generic source for more control
+//! let source = MigrationSource::weaviate_with_key("http://localhost:8080", "Products", "api-key");
+//! tool.import_from_source(source, "products").await?;
 //! ```
 
 #![warn(clippy::all)]
